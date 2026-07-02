@@ -1625,10 +1625,11 @@ export default function App() {
   const [listingMinPrice, setListingMinPrice] = useState("");
   const [listingMaxPrice, setListingMaxPrice] = useState("");
   const [hoveredListing, setHoveredListing] = useState(null);
-  const [notifReads, setNotifReads] = useState(() => {
-    const m = {};
-    NOTIFICATIONS.forEach(n => { if (n.defaultRead) m[n.id] = true; });
-    return m;
+  // Notification read state — app-level so badges work everywhere, persisted
+  // across sessions. Ids derive from lead/task uuids (globally unique).
+  const [notifReadIds, setNotifReadIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("tme-notif-reads") || "[]")); }
+    catch { return new Set(); }
   });
 
   // Messages
@@ -2617,13 +2618,20 @@ export default function App() {
     return true;
   });
 
-  const unreadNotifs = inboxItems.length;
+  const unreadNotifs = inboxItems.filter(n => !notifReadIds.has(n.id)).length;
 
-  const markNotifRead = (id) => setNotifReads(prev => ({ ...prev, [id]: true }));
+  // Persist read ids, trimmed to ids still in the feed (items age out at 14
+  // days) so localStorage can't grow unbounded.
+  const persistNotifReads = (set) => {
+    const live = new Set(inboxItems.map(n => n.id));
+    try { localStorage.setItem("tme-notif-reads", JSON.stringify([...set].filter(id => live.has(id)))); } catch { /* ignore */ }
+  };
+  const markNotifRead = (id) => setNotifReadIds(prev => {
+    const next = new Set(prev); next.add(id); persistNotifReads(next); return next;
+  });
   const markAllNotifsRead = () => {
-    const m = {};
-    NOTIFICATIONS.forEach(n => { m[n.id] = true; });
-    setNotifReads(m);
+    const next = new Set(inboxItems.map(n => n.id));
+    setNotifReadIds(next); persistNotifReads(next);
     setToast({ message: "All caught up", kind: "success" });
   };
   const jumpToLead = (leadId) => {
@@ -2645,7 +2653,7 @@ export default function App() {
 
   const nav = [
     { id: "dashboard", label: "Dashboard", icon: Home },
-    { id: "inbox", label: "Inbox", icon: Bell },
+    { id: "inbox", label: "Notifications", icon: Bell },
     { id: "leads", label: "Leads", icon: Users },
     { id: "pipeline", label: "Pipeline", icon: Layers },
     { id: "tasks", label: "Tasks", icon: CalendarDays },
@@ -2725,6 +2733,22 @@ export default function App() {
             </h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Here's what's moving today across triskope.</p>
           </div>
+          <button onClick={() => setView("inbox")} aria-label="Notifications" style={{
+            position: "relative", display: "flex", alignItems: "center", justifyContent: "center",
+            width: 44, height: 44, borderRadius: 10,
+            background: C.bgCard, border: `1px solid ${C.border}`,
+            color: C.text, cursor: "pointer", flexShrink: 0,
+          }}>
+            <Bell size={18} />
+            {unreadNotifs > 0 && (
+              <span style={{
+                position: "absolute", top: -6, right: -6,
+                padding: "1px 6px", minWidth: 18, borderRadius: 9999,
+                background: C.gold, color: C.bgDark, textAlign: "center",
+                fontSize: 10, fontWeight: 700, border: `2px solid ${C.bg}`,
+              }}>{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>
+            )}
+          </button>
         </div>
 
         {/* Today's focus widget */}
@@ -4896,17 +4920,16 @@ export default function App() {
 
   // ----- INBOX -----
   const InboxView = () => {
-    const [readIds, setReadIds] = useState(() => new Set());
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-    const unread = inboxItems.filter(n => !readIds.has(n.id)).length;
-    const shown = inboxItems.filter(n => !showUnreadOnly || !readIds.has(n.id));
-    const markRead = (id) => setReadIds(prev => new Set(prev).add(id));
-    const markAll = () => setReadIds(new Set(inboxItems.map(n => n.id)));
+    const unread = unreadNotifs;
+    const shown = inboxItems.filter(n => !showUnreadOnly || !notifReadIds.has(n.id));
+    const markRead = markNotifRead;
+    const markAll = markAllNotifsRead;
     return (
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Inbox</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Notifications</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
               {inboxItems.length === 0 ? "Nothing needs your attention right now." : unread > 0 ? `${unread} unread • ${inboxItems.length} total` : "All caught up"}
             </p>
@@ -4933,12 +4956,12 @@ export default function App() {
         </div>
 
         {shown.length === 0 ? (
-          <Card><EmptyState icon={Inbox} title={inboxItems.length === 0 ? "Inbox zero" : "All read"} message={inboxItems.length === 0 ? "New leads and follow-ups due will show up here as they happen." : "Everything has been read."} /></Card>
+          <Card><EmptyState icon={Inbox} title={inboxItems.length === 0 ? "All clear" : "All read"} message={inboxItems.length === 0 ? "New leads and follow-ups due will show up here as they happen." : "Everything has been read."} /></Card>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {shown.map(n => {
               const NIcon = NOTIFICATION_ICONS[n.type] || Bell;
-              const isUnread = !readIds.has(n.id);
+              const isUnread = !notifReadIds.has(n.id);
               const handleClick = () => {
                 if (n.leadId) jumpToLead(n.leadId);
                 if (isUnread) markRead(n.id);
@@ -7618,6 +7641,21 @@ async function triskopeSubmit(e){
             <TriskopeLogo size={28} light />
             <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 500, color: C.textInv, letterSpacing: "0.06em" }}>triskope</span>
           </div>
+          <button onClick={() => { setView("inbox"); setSidebarOpen(false); }} aria-label="Notifications" style={{
+            marginLeft: "auto", position: "relative", background: "none", border: "none",
+            color: C.textInv, cursor: "pointer", padding: 8,
+            minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Bell size={20} />
+            {unreadNotifs > 0 && (
+              <span style={{
+                position: "absolute", top: 4, right: 2,
+                padding: "0 5px", minWidth: 16, borderRadius: 9999,
+                background: C.gold, color: C.bgDark, textAlign: "center",
+                fontSize: 9.5, fontWeight: 700, lineHeight: "16px",
+              }}>{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>
+            )}
+          </button>
         </div>
       )}
 
@@ -7675,6 +7713,13 @@ async function triskopeSubmit(e){
               >
                 <Icon size={isMobile ? 18 : 16} />
                 <span style={{ flex: 1 }}>{item.label}</span>
+                {item.id === "inbox" && unreadNotifs > 0 && (
+                  <span style={{
+                    padding: "1px 7px", borderRadius: 9999, minWidth: 18,
+                    background: C.gold, color: C.bgDark, textAlign: "center",
+                    fontSize: 10, fontWeight: 700, letterSpacing: "0.02em",
+                  }}>{unreadNotifs > 99 ? "99+" : unreadNotifs}</span>
+                )}
                 {item.preview && (
                   <span style={{
                     padding: "1px 6px", borderRadius: 9999,
