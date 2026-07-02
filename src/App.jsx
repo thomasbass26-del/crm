@@ -233,7 +233,7 @@ const PLANS = [
 // Pipeline stages — used by the Kanban view
 // The Market Edge — 5-Stage Lead Incubation Funnel (+ Lost).
 // Colors progress cool -> warm -> hot to mirror passive -> active -> ready.
-const STAGES = [
+const DEFAULT_STAGES = [
   { id: "captured",   label: "Captured",   color: "#818cf8" }, // 01 Targeted Prospect Capture — indigo
   { id: "scored",     label: "Scored",     color: "#a78bfa" }, // 02 Intent Scoring & Segmentation — purple
   { id: "nurturing",  label: "Nurturing",  color: "#5eead4" }, // 03 Multi-Channel Nurture Incubation — teal
@@ -241,6 +241,13 @@ const STAGES = [
   { id: "delivered",  label: "Delivered",  color: "#10b981" }, // 05 Hot Lead Delivery — green
   { id: "lost",       label: "Lost",       color: "#55557a" }, // dropped out — dim
 ];
+
+// Role hierarchy for permission checks (owner ⊇ team_lead ⊇ agent).
+const ROLE_RANK = { owner: 3, team_lead: 2, agent: 1 };
+const ACTION_MIN_RANK = {
+  manage_stages: 3, manage_billing: 3, invite_member: 3, // owner only
+  assign_lead: 2, setup_round_robin: 2, delete_lead: 2,  // team_lead + owner
+};
 
 // Lead segments (Stage 02 — Intent Scoring & Segmentation).
 const SEGMENTS = [
@@ -1490,6 +1497,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [needsPassword, setNeedsPassword] = useState(false); // invited user must set a password
   const [org, setOrg] = useState(null); // { id, name, slug } for the signed-in user
+  const [orgs, setOrgs] = useState([]); // every workspace the user belongs to (for the switcher)
   const [profile, setProfile] = useState(null);
 
   useEffect(() => {
@@ -1529,6 +1537,19 @@ export default function App() {
 
   const signOut = async () => { await supabase.auth.signOut(); };
 
+  // Switch the active workspace. Remembered across reloads; the per-org pipeline
+  // (loadStages effect keyed on org?.id) reloads automatically when org changes.
+  const switchOrg = (orgId) => {
+    const next = orgs.find(o => o.id === orgId);
+    if (!next || next.id === org?.id) return;
+    setOrg(next);
+    setSelectedLead(null);
+    try { localStorage.setItem("activeOrgId", orgId); } catch { /* ignore */ }
+  };
+
+  // Permission check keyed on the active org's role (owner ⊇ team_lead ⊇ agent).
+  const can = (action) => (ROLE_RANK[org?.role] ?? 0) >= (ACTION_MIN_RANK[action] ?? 0);
+
   const [view, setView] = useState("dashboard");
   const [selectedLead, setSelectedLead] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1553,6 +1574,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState("score");
   const [sortOpen, setSortOpen] = useState(false);
   const [leads, setLeads] = useState([]);
+  const [orgMembers, setOrgMembers] = useState([]); // members of the active org (for lead assignment)
   const [idxListings, setIdxListings] = useState([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadNotes, setLeadNotes] = useState({});   // { leadId: [{ id, text, createdAt }] }
@@ -1561,11 +1583,36 @@ export default function App() {
   const [taskDraft, setTaskDraft] = useState("");
   const taskTextRef = useRef(null);
   const taskDueRef = useRef(null);
+  const qaTaskTextRef = useRef(null);   // Tasks-view quick-add
+  const qaTaskDueRef = useRef(null);
+  const qaTaskLeadRef = useRef(null);
   const [taskDueDraft, setTaskDueDraft] = useState("");
   const [draggingId, setDraggingId] = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
   const [stageMenuFor, setStageMenuFor] = useState(null); // leadId whose stage menu is open
-  const [mobileStageId, setMobileStageId] = useState(STAGES[0].id); // which stage shown on mobile pipeline
+  // Pipeline stages, loaded per-org from the pipeline_stages table.
+  // stagesAll = every stage for the current org (including hidden). STAGES = the
+  // visible, position-ordered list the board and dropdowns render. Seeded from
+  // DEFAULT_STAGES so the board is never blank before the org's rows load.
+  const [stagesAll, setStagesAll] = useState(() =>
+    DEFAULT_STAGES.map((s, i) => ({
+      ...s,
+      position: i + 1,
+      hidden: false,
+      system: s.id === "captured" || s.id === "warm" || s.id === "delivered",
+    }))
+  );
+  const STAGES = [...stagesAll].filter(s => !s.hidden).sort((a, b) => a.position - b.position);
+  const [mobileStageId, setMobileStageId] = useState(STAGES[0]?.id ?? "captured"); // which stage shown on mobile pipeline
+  const [manageStagesOpen, setManageStagesOpen] = useState(false); // stage manager modal (owner-only)
+  const [stageBusy, setStageBusy] = useState(null); // id of the stage currently being written
+  const [distributing, setDistributing] = useState(false); // round-robin in progress
+  const [distributeCount, setDistributeCount] = useState(null); // null=idle; number=confirm pending
+  const [newStageLabel, setNewStageLabel] = useState(""); // create-stage form: label
+  const [newStageColor, setNewStageColor] = useState("#818cf8"); // create-stage form: color
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // stage id in "click again to confirm" state
+  const [editingStageId, setEditingStageId] = useState(null); // stage id whose label is being renamed
+  const [editLabelDraft, setEditLabelDraft] = useState(""); // in-progress renamed label
   const [siteToolsTab, setSiteToolsTab] = useState("preview"); // active tab in Site Tools
   const [pipeSegment, setPipeSegment] = useState("all"); // pipeline segment filter
 
@@ -1597,7 +1644,7 @@ export default function App() {
   const [showAddLead, setShowAddLead] = useState(false);
   const blankLeadDraft = {
     name: "", email: "", phone: "", source: "Manual entry",
-    status: "new", stage: "new", score: 50,
+    status: "new", stage: "captured", score: 50,
     area: "", budget: "", interest: "Buying",
     aiNotes: "",
   };
@@ -1642,22 +1689,44 @@ export default function App() {
   useEffect(() => {
     if (!session) { setLeads([]); return; }
     let cancelled = false;
-    loadTasks();
     // Resolve the signed-in user's organization (id, name, slug) for the Connect-site screen
     (async () => {
-      const { data: mem } = await supabase.from("org_members").select("org_id, role").limit(1).maybeSingle();
-      if (mem?.org_id) {
-        const { data: o } = await supabase.from("organizations").select("id, name, slug, site_config, features").eq("id", mem.org_id).maybeSingle();
-        if (o) setOrg({ ...o, role: mem.role });
-      }
+      const { data: mems } = await supabase.from("org_members").select("org_id, role");
+      if (!mems || mems.length === 0) return;
+      const roleByOrg = Object.fromEntries(mems.map(m => [m.org_id, m.role]));
+      const { data: orgRows } = await supabase
+        .from("organizations")
+        .select("id, name, slug, site_config, features")
+        .in("id", mems.map(m => m.org_id));
+      if (!orgRows || orgRows.length === 0) return;
+      const list = orgRows
+        .map(o => ({ ...o, role: roleByOrg[o.id] }))
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      setOrgs(list);
+      let savedId = null;
+      try { savedId = localStorage.getItem("activeOrgId"); } catch { /* ignore */ }
+      const active = list.find(o => o.id === savedId) || list[0];
+      setOrg(active);
     })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
+  // Org-partitioned data: tasks + IDX listings follow the ACTIVE workspace,
+  // mirroring the leads effect. Re-runs on workspace switch.
+  useEffect(() => {
+    if (!org?.id) { setLeadTasks({}); setIdxListings([]); return; }
+    let cancelled = false;
+    loadTasks(org.id);
     // Load real IDX listings (if any feed has synced)
     supabase.from("idx_listings")
       .select("id, listing_key, mls_number, status, list_price, address, city, state, zip, beds, baths, sqft, property_type, photo_url, detail_url")
+      .eq("org_id", org.id)
       .order("synced_at", { ascending: false })
       .limit(500)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        if (error) { console.error("idx_listings load failed:", error.message); setIdxListings([]); return; }
         const mapped = (data || []).map((r, i) => ({
           id: r.id, listing_key: r.listing_key,
           address: r.address || r.mls_number || "Listing",
@@ -1672,14 +1741,24 @@ export default function App() {
         }));
         setIdxListings(mapped);
       });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org?.id]);
+
+  // Load THIS org's leads (org-partitioned). Re-runs when the active org changes,
+  // so switching workspaces shows only that org's leads — not a merged set.
+  useEffect(() => {
+    if (!org?.id) { setLeads([]); return; }
+    let cancelled = false;
     setLeadsLoading(true);
     supabase
       .from("leads")
       .select(`
-        id, name, email, phone, source, stage, score, score_rationale,
+        id, name, email, phone, source, stage, score, score_rationale, assigned_agent,
         consent_email, consent_sms, community_id, created_at,
         activity:lead_activities(type, body, channel, created_at)
       `)
+      .eq("org_id", org.id)
       .order("score", { ascending: false, nullsFirst: false })
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -1712,6 +1791,7 @@ export default function App() {
             createdAt: l.created_at,
             lastContact: "—",
             agent: null,
+            assignedAgent: l.assigned_agent,
             tags: [],
             activity: (l.activity || [])
               .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -1726,7 +1806,198 @@ export default function App() {
         setLeads(shaped);
       });
     return () => { cancelled = true; };
-  }, [session?.user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org?.id]);
+
+  // Load this org's pipeline stages (per-org, RLS-scoped by membership).
+  // The explicit org_id filter is required: RLS lets an owner of multiple orgs
+  // read all of them, so without it the board would merge stages across orgs.
+  // If the org has no rows yet, we keep the DEFAULT_STAGES fallback (never blank).
+  const loadStages = async (orgId) => {
+    if (!orgId) return;
+    const { data, error } = await supabase
+      .from("pipeline_stages")
+      .select("id, label, color, position, hidden, system")
+      .eq("org_id", orgId)
+      .order("position", { ascending: true });
+    if (error) { console.error("pipeline_stages load failed:", error.message); return; }
+    if (data && data.length) setStagesAll(data);
+  };
+
+  useEffect(() => {
+    if (!org?.id) return;
+    loadStages(org.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org?.id]);
+
+  // Load the active org's members (for the lead-assignment picker).
+  useEffect(() => {
+    if (!org?.id) { setOrgMembers([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.functions.invoke("team-members", { body: { org_id: org.id } });
+      if (!cancelled && data?.members) setOrgMembers(data.members);
+    })();
+    return () => { cancelled = true; };
+  }, [org?.id]);
+
+  // Team lead / owner: assign a lead to a member (or unassign with null).
+  const assignLead = async (leadId, userId) => {
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assignedAgent: userId } : l));
+    setSelectedLead(prev => (prev && prev.id === leadId) ? { ...prev, assignedAgent: userId } : prev);
+    const { error } = await supabase.from("leads").update({ assigned_agent: userId }).eq("id", leadId);
+    if (error) setToast({ message: "Couldn't assign: " + error.message, kind: "error" });
+  };
+
+  // Round-robin (team_lead / owner): step 1 counts unassigned leads in the active
+  // org and arms the confirm; step 2 distributes them evenly across all members.
+  const prepDistribute = async () => {
+    if (!org?.id) return;
+    const { count, error } = await supabase.from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", org.id).is("assigned_agent", null);
+    if (error) { setToast({ message: "Couldn't check leads: " + error.message, kind: "error" }); return; }
+    if (!count) { setToast({ message: "No unassigned leads to distribute.", kind: "info" }); return; }
+    if (!orgMembers.length) { setToast({ message: "No team members to assign to.", kind: "error" }); return; }
+    setDistributeCount(count);
+    setToast({ message: `${count} unassigned lead${count === 1 ? "" : "s"} — click the button again to confirm.`, kind: "info" });
+    // Auto-disarm if not confirmed within 8s
+    setTimeout(() => setDistributeCount(prev => (prev === count ? null : prev)), 8000);
+  };
+
+  const runDistribute = async () => {
+    if (!org?.id || !orgMembers.length) { setDistributeCount(null); return; }
+    setDistributing(true);
+    const { data: unassigned, error } = await supabase.from("leads")
+      .select("id").eq("org_id", org.id).is("assigned_agent", null);
+    if (error) { setDistributing(false); setDistributeCount(null); setToast({ message: "Distribute failed: " + error.message, kind: "error" }); return; }
+    const members = orgMembers;
+    const buckets = new Map(); // user_id -> [leadId]
+    (unassigned || []).forEach((row, i) => {
+      const uid = members[i % members.length].user_id;
+      if (!buckets.has(uid)) buckets.set(uid, []);
+      buckets.get(uid).push(row.id);
+    });
+    let failed = 0;
+    for (const [uid, ids] of buckets) {
+      for (let i = 0; i < ids.length; i += 100) {
+        const part = ids.slice(i, i + 100);
+        const { error: uErr } = await supabase.from("leads").update({ assigned_agent: uid }).in("id", part);
+        if (uErr) failed += part.length;
+      }
+    }
+    const idToUid = {};
+    buckets.forEach((ids, uid) => ids.forEach(id => { idToUid[id] = uid; }));
+    setLeads(prev => prev.map(l => idToUid[l.id] ? { ...l, assignedAgent: idToUid[l.id] } : l));
+    setSelectedLead(prev => (prev && idToUid[prev.id]) ? { ...prev, assignedAgent: idToUid[prev.id] } : prev);
+    setDistributing(false);
+    setDistributeCount(null);
+    const total = (unassigned || []).length;
+    setToast({
+      message: failed
+        ? `Assigned ${total - failed}/${total}; ${failed} failed.`
+        : `Distributed ${total} lead${total === 1 ? "" : "s"} across ${buckets.size} member${buckets.size === 1 ? "" : "s"}.`,
+      kind: failed ? "error" : "success",
+    });
+  };
+
+  // Owner-only: hide/show a stage column. View-only — nothing is deleted, and
+  // the DB write is gated by RLS to owners of this org. Captured can't be hidden
+  // (it's the lead-capture target where new + existing leads land).
+  const toggleStageHidden = async (stage) => {
+    if (!org?.id || stage.id === "captured") return;
+    setStageBusy(stage.id);
+    const { error } = await supabase
+      .from("pipeline_stages")
+      .update({ hidden: !stage.hidden })
+      .eq("org_id", org.id)
+      .eq("id", stage.id);
+    setStageBusy(null);
+    if (error) { setToast({ message: "Couldn't update stage: " + error.message, kind: "error" }); return; }
+    await loadStages(org.id);
+    setToast({ message: `${stage.label} ${stage.hidden ? "shown" : "hidden"}`, kind: "success" });
+  };
+
+  // Owner-only: change a stage's display color (persist on blur).
+  const updateStageColor = async (stage, color) => {
+    if (!org?.id || !color || color === stage.color) return;
+    const { error } = await supabase
+      .from("pipeline_stages").update({ color })
+      .eq("org_id", org.id).eq("id", stage.id);
+    if (error) { setToast({ message: "Couldn't recolor: " + error.message, kind: "error" }); return; }
+    await loadStages(org.id);
+  };
+
+  // Owner-only: reorder by swapping position with the adjacent stage.
+  const moveStagePosition = async (stage, dir) => {
+    if (!org?.id) return;
+    const ordered = [...stagesAll].sort((a, b) => a.position - b.position);
+    const idx = ordered.findIndex(s => s.id === stage.id);
+    const swapWith = ordered[idx + dir];
+    if (!swapWith) return;
+    setStageBusy(stage.id);
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from("pipeline_stages").update({ position: swapWith.position }).eq("org_id", org.id).eq("id", stage.id),
+      supabase.from("pipeline_stages").update({ position: stage.position }).eq("org_id", org.id).eq("id", swapWith.id),
+    ]);
+    setStageBusy(null);
+    if (e1 || e2) { setToast({ message: "Couldn't reorder: " + (e1 || e2).message, kind: "error" }); }
+    await loadStages(org.id);
+  };
+
+  // Owner-only: create a custom stage at the end of the board.
+  const createStage = async () => {
+    const label = newStageLabel.trim();
+    if (!org?.id || !label) return;
+    const base = (label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24)) || "stage";
+    const id = `${base}_${Math.random().toString(36).slice(2, 7)}`;
+    const maxPos = stagesAll.reduce((m, s) => Math.max(m, s.position), 0);
+    setStageBusy("__new__");
+    const { error } = await supabase.from("pipeline_stages").insert({
+      org_id: org.id, id, label, color: newStageColor || "#818cf8",
+      position: maxPos + 1, hidden: false, system: false,
+    });
+    setStageBusy(null);
+    if (error) { setToast({ message: "Couldn't create stage: " + error.message, kind: "error" }); return; }
+    setNewStageLabel(""); setNewStageColor("#818cf8");
+    await loadStages(org.id);
+    setToast({ message: `Added "${label}"`, kind: "success" });
+  };
+
+  // Owner-only: delete a custom stage. Blocked for system stages, and for any
+  // stage that still holds leads (checked here for a friendly message; the FK's
+  // on-delete-restrict is the hard backstop at the DB).
+  const deleteStage = async (stage) => {
+    if (!org?.id || stage.system) return;
+    setStageBusy(stage.id);
+    const { count, error: cErr } = await supabase
+      .from("leads").select("id", { count: "exact", head: true })
+      .eq("org_id", org.id).eq("stage", stage.id);
+    if (cErr) { setStageBusy(null); setConfirmDeleteId(null); setToast({ message: "Couldn't check leads: " + cErr.message, kind: "error" }); return; }
+    if (count && count > 0) {
+      setStageBusy(null); setConfirmDeleteId(null);
+      setToast({ message: `Move the ${count} lead${count === 1 ? "" : "s"} out of "${stage.label}" first`, kind: "error" });
+      return;
+    }
+    const { error } = await supabase.from("pipeline_stages").delete().eq("org_id", org.id).eq("id", stage.id);
+    setStageBusy(null); setConfirmDeleteId(null);
+    if (error) { setToast({ message: "Couldn't delete: " + error.message, kind: "error" }); return; }
+    await loadStages(org.id);
+    setToast({ message: `Deleted "${stage.label}"`, kind: "success" });
+  };
+
+  // Owner-only: rename a stage's label (allowed for every stage, including system).
+  const renameStage = async (stage, label) => {
+    const next = (label || "").trim();
+    setEditingStageId(null);
+    if (!org?.id || !next || next === stage.label) return;
+    const { error } = await supabase
+      .from("pipeline_stages").update({ label: next })
+      .eq("org_id", org.id).eq("id", stage.id);
+    if (error) { setToast({ message: "Couldn't rename: " + error.message, kind: "error" }); return; }
+    await loadStages(org.id);
+    setToast({ message: `Renamed to "${next}"`, kind: "success" });
+  };
 
   // Fetch messages for the currently selected lead
   useEffect(() => {
@@ -2048,10 +2319,12 @@ export default function App() {
     setToast({ message: "Note added", kind: "success" });
   };
 
-  const loadTasks = async () => {
+  const loadTasks = async (orgId) => {
+    if (!orgId) { setLeadTasks({}); return; }
     const { data } = await supabase
       .from("tasks")
       .select("id, lead_id, title, due_at, completed_at")
+      .eq("org_id", orgId)
       .order("due_at", { ascending: true, nullsFirst: false });
     // Shape into { leadId: [{ id, text, due, done }] } for the UI
     const grouped = {};
@@ -2069,10 +2342,9 @@ export default function App() {
 
   const addTask = async (leadId, text, due) => {
     if (!text.trim()) return;
-    const { data: mem } = await supabase.from("org_members").select("org_id").limit(1).maybeSingle();
-    if (!mem?.org_id) { setToast({ message: "No workspace found.", kind: "error" }); return; }
+    if (!org?.id) { setToast({ message: "No workspace found.", kind: "error" }); return; }
     const { data, error } = await supabase.from("tasks").insert({
-      org_id: mem.org_id,
+      org_id: org.id,
       lead_id: leadId === "_none" ? null : leadId,
       title: text.trim(),
       due_at: due ? new Date(due).toISOString() : null,
@@ -2110,15 +2382,14 @@ export default function App() {
       [leadId]: (prev[leadId] || []).filter(t => t.id !== taskId),
     }));
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-    if (error) { setToast({ message: "Couldn't delete task", kind: "error" }); loadTasks(); }
+    if (error) { setToast({ message: "Couldn't delete task", kind: "error" }); loadTasks(org?.id); }
   };
 
   // ----- Messaging -----
   const sendMessage = async (leadId, body, channel, subject) => {
     if (!body.trim()) return;
     const lead = leads.find(l => l.id === leadId);
-    const { data: mem } = await supabase.from("org_members").select("org_id").limit(1).maybeSingle();
-    const orgId = mem?.org_id;
+    const orgId = org?.id;
 
     const optimistic = {
       id: "temp-" + Date.now(),
@@ -2192,21 +2463,21 @@ export default function App() {
     const name = (f.name?.value || "").trim();
     if (!name) { setToast({ message: "Name is required", kind: "error" }); return; }
     setAddingLead(true);
-    // Resolve the user's org (live schema is multi-tenant; leads require org_id)
-    const { data: mem } = await supabase
-      .from("org_members").select("org_id").limit(1).maybeSingle();
-    if (!mem?.org_id) {
+    // New leads always land in the ACTIVE workspace
+    if (!org?.id) {
       setAddingLead(false);
       setToast({ message: "No workspace found for your account.", kind: "error" });
       return;
     }
     const payload = {
-      org_id: mem.org_id,
+      org_id: org.id,
       name,
       email: (f.email?.value || "").trim() || null,
       phone: (f.phone?.value || "").trim() || null,
       source: (f.source?.value || "").trim() || "manual_entry",
-      stage: leadDraft.stage,
+      // Guard: only send a stage this org actually has (FK on org_id+stage),
+      // falling back to the first visible stage.
+      stage: STAGES.some(s => s.id === leadDraft.stage) ? leadDraft.stage : (STAGES[0]?.id || "captured"),
       score: Number(f.score?.value) || null,
       consent_email: false,
       consent_sms: false,
@@ -2279,11 +2550,14 @@ export default function App() {
   );
 
   const todayStr = new Date().toISOString().slice(0, 10);
+  // Tasks with no due date are shaped as the literal string "no due date",
+  // which lexically sorts after real YYYY-MM-DD dates — test the format instead.
+  const taskHasDue = (t) => t.due && /^\d{4}-\d{2}-\d{2}$/.test(t.due);
   const taskBuckets = {
-    overdue:   allTasks.filter(t => !t.done && t.due && t.due < todayStr),
+    overdue:   allTasks.filter(t => !t.done && taskHasDue(t) && t.due < todayStr),
     today:     allTasks.filter(t => !t.done && t.due === todayStr),
-    upcoming:  allTasks.filter(t => !t.done && t.due && t.due > todayStr),
-    nodue:     allTasks.filter(t => !t.done && !t.due),
+    upcoming:  allTasks.filter(t => !t.done && taskHasDue(t) && t.due > todayStr),
+    nodue:     allTasks.filter(t => !t.done && !taskHasDue(t)),
     completed: allTasks.filter(t => t.done).slice(0, 12),
   };
 
@@ -2377,6 +2651,7 @@ export default function App() {
     { id: "reports", label: "Market Reports", icon: FileText },
     { id: "communities", label: "Communities", icon: Map, preview: true, feature: "communities" },
     { id: "agents", label: "Agents", icon: Award, ownerOnly: true },
+    { id: "team", label: "Team", icon: UserPlus, ownerOnly: true },
     { id: "assistant", label: "AI Assistant", icon: Bot, pro: true },
   ];
 
@@ -2807,17 +3082,19 @@ export default function App() {
           <button onClick={() => setSelectedLead(null)} style={{ background: "none", border: "none", color: C.teal, fontSize: 14, cursor: "pointer", padding: "4px 0", minHeight: 44, display: "flex", alignItems: "center", gap: 4 }}>
             <ChevronLeft size={16} /> Back to all leads
           </button>
-          <button onClick={() => setConfirmDelete(lead)} style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "8px 12px", borderRadius: 8,
-            background: "transparent", border: `1px solid ${C.border}`,
-            color: C.textMuted, fontSize: 12, fontWeight: 500, cursor: "pointer",
-            transition: "color 0.15s ease, border-color 0.15s ease",
-          }}
-            onMouseEnter={e => { e.currentTarget.style.color = C.red; e.currentTarget.style.borderColor = C.red + "55"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>
-            <Trash2 size={12} /> Delete lead
-          </button>
+          {can("delete_lead") && (
+            <button onClick={() => setConfirmDelete(lead)} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 12px", borderRadius: 8,
+              background: "transparent", border: `1px solid ${C.border}`,
+              color: C.textMuted, fontSize: 12, fontWeight: 500, cursor: "pointer",
+              transition: "color 0.15s ease, border-color 0.15s ease",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.color = C.red; e.currentTarget.style.borderColor = C.red + "55"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>
+              <Trash2 size={12} /> Delete lead
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: 16, margin: "12px 0 20px", flexDirection: isMobile ? "column" : "row" }}>
@@ -2844,6 +3121,21 @@ export default function App() {
                   }}>{seg.label}</button>
                 );
               })}
+            </div>
+            {/* Assignment — team lead / owner can change; agents see it read-only */}
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: C.textDim, marginRight: 2 }}>Assigned to:</span>
+              {can("assign_lead") ? (
+                <select value={lead.assignedAgent ?? ""} onChange={(e) => assignLead(lead.id, e.target.value || null)}
+                  style={{ padding: "4px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  <option value="">Unassigned</option>
+                  {orgMembers.map(m => <option key={m.user_id} value={m.user_id}>{m.email}</option>)}
+                </select>
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
+                  {orgMembers.find(m => m.user_id === lead.assignedAgent)?.email ?? "Unassigned"}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -3395,6 +3687,37 @@ export default function App() {
               }}>{seg.label}</button>
             );
           })}
+          {can("setup_round_robin") && (
+            <button
+              onClick={() => (distributeCount == null ? prepDistribute() : runDistribute())}
+              disabled={distributing}
+              title="Round-robin all unassigned leads across the whole team"
+              style={{
+                marginLeft: "auto", padding: "6px 14px", borderRadius: 999,
+                cursor: distributing ? "default" : "pointer", fontSize: 12, fontWeight: 600,
+                border: `1px solid ${distributeCount != null ? C.teal : C.border}`,
+                background: distributeCount != null ? C.teal + "18" : "transparent",
+                color: distributeCount != null ? C.teal : C.textMuted,
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <ArrowUpDown size={13} /> {distributing ? "Assigning…" : distributeCount != null ? `Click again to assign ${distributeCount}` : "Distribute unassigned"}
+            </button>
+          )}
+          {org?.role === "owner" && (
+            <button
+              onClick={() => setManageStagesOpen(true)}
+              title="Show or hide pipeline stages"
+              style={{
+                marginLeft: "auto", padding: "6px 14px", borderRadius: 999, cursor: "pointer",
+                fontSize: 12, fontWeight: 600, border: `1px solid ${C.border}`,
+                background: "transparent", color: C.textMuted,
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <Layers size={13} /> Manage stages
+            </button>
+          )}
         </div>
 
         <div style={{
@@ -3502,6 +3825,109 @@ export default function App() {
             );
           })}
         </div>
+
+        {manageStagesOpen && (
+          <div
+            onClick={() => { setManageStagesOpen(false); setConfirmDeleteId(null); setEditingStageId(null); }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 520, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.5)", overflow: "hidden" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: `1px solid ${C.border}` }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Manage pipeline stages</div>
+                  <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+                    Editing <strong style={{ color: C.text }}>{org?.name ?? "your pipeline"}</strong> · changes apply only to this org.
+                  </div>
+                </div>
+                <button onClick={() => { setManageStagesOpen(false); setConfirmDeleteId(null); setEditingStageId(null); }} style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", padding: 4, display: "flex" }} aria-label="Close">
+                  <X size={18} />
+                </button>
+              </div>
+              <div style={{ padding: 10, maxHeight: 420, overflowY: "auto" }}>
+                {(() => {
+                  const ordered = [...stagesAll].sort((a, b) => a.position - b.position);
+                  return ordered.map((s, i) => {
+                    const lockedFromHide = s.id === "captured";
+                    const busy = stageBusy === s.id;
+                    const confirming = confirmDeleteId === s.id;
+                    return (
+                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 6px", borderRadius: 10, opacity: s.hidden ? 0.55 : 1 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <button onClick={() => moveStagePosition(s, -1)} disabled={i === 0 || busy} title="Move up"
+                            style={{ background: "none", border: "none", padding: 0, lineHeight: 0, cursor: (i === 0 || busy) ? "default" : "pointer", color: C.textMuted, opacity: i === 0 ? 0.35 : 1 }}>
+                            <ChevronUp size={14} />
+                          </button>
+                          <button onClick={() => moveStagePosition(s, 1)} disabled={i === ordered.length - 1 || busy} title="Move down"
+                            style={{ background: "none", border: "none", padding: 0, lineHeight: 0, cursor: (i === ordered.length - 1 || busy) ? "default" : "pointer", color: C.textMuted, opacity: i === ordered.length - 1 ? 0.35 : 1 }}>
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                        <input type="color" defaultValue={s.color} onBlur={(e) => updateStageColor(s, e.target.value)} title="Change color"
+                          style={{ width: 22, height: 22, padding: 0, border: `1px solid ${C.border}`, borderRadius: 6, background: "none", cursor: "pointer", flexShrink: 0 }} />
+                        {editingStageId === s.id ? (
+                          <input
+                            autoFocus
+                            value={editLabelDraft}
+                            onChange={(e) => setEditLabelDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") renameStage(s, editLabelDraft); if (e.key === "Escape") setEditingStageId(null); }}
+                            onBlur={() => renameStage(s, editLabelDraft)}
+                            style={{ fontSize: 14, fontWeight: 600, color: C.text, background: C.bgHover, border: `1px solid ${C.teal}`, borderRadius: 6, padding: "3px 8px", width: 150, minWidth: 0 }}
+                          />
+                        ) : (
+                          <span onClick={() => { setEditingStageId(s.id); setEditLabelDraft(s.label); setConfirmDeleteId(null); }} title="Click to rename"
+                            style={{ fontSize: 14, fontWeight: 600, color: C.text, cursor: "text" }}>{s.label}</span>
+                        )}
+                        {s.system && (
+                          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 6, padding: "1px 6px" }}>System</span>
+                        )}
+                        {s.hidden && (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: C.textDim }}>Hidden</span>
+                        )}
+                        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                          <button
+                            onClick={() => { if (!lockedFromHide && !busy) toggleStageHidden(s); }}
+                            disabled={lockedFromHide || busy}
+                            title={lockedFromHide ? "Captured is the lead-capture target and can't be hidden" : (s.hidden ? "Show this column" : "Hide this column")}
+                            style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: `1px solid ${C.border}`, background: "transparent", color: lockedFromHide ? C.textDim : C.text, cursor: (lockedFromHide || busy) ? "default" : "pointer", opacity: lockedFromHide ? 0.5 : 1 }}>
+                            {busy ? "…" : lockedFromHide ? "Locked" : s.hidden ? "Show" : "Hide"}
+                          </button>
+                          <button
+                            onClick={() => { if (s.system || busy) return; confirming ? deleteStage(s) : setConfirmDeleteId(s.id); }}
+                            disabled={s.system || busy}
+                            title={s.system ? "System stages can't be deleted — rename or hide instead" : "Delete this stage"}
+                            style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: `1px solid ${confirming ? C.red : C.border}`, background: confirming ? C.red + "18" : "transparent", color: s.system ? C.textDim : confirming ? C.red : C.textMuted, cursor: (s.system || busy) ? "default" : "pointer", opacity: s.system ? 0.4 : 1, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            {confirming ? "Confirm?" : <Trash2 size={13} />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+
+                <div style={{ marginTop: 8, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="color" value={newStageColor} onChange={(e) => setNewStageColor(e.target.value)} title="New stage color"
+                    style={{ width: 22, height: 22, padding: 0, border: `1px solid ${C.border}`, borderRadius: 6, background: "none", cursor: "pointer", flexShrink: 0 }} />
+                  <input
+                    value={newStageLabel}
+                    onChange={(e) => setNewStageLabel(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") createStage(); }}
+                    placeholder="New stage name…"
+                    style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgHover, color: C.text, fontSize: 13 }}
+                  />
+                  <button
+                    onClick={createStage}
+                    disabled={!newStageLabel.trim() || stageBusy === "__new__"}
+                    style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "none", background: newStageLabel.trim() ? C.teal : C.border, color: newStageLabel.trim() ? "#fff" : C.textDim, cursor: newStageLabel.trim() ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <Plus size={14} /> Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -4560,11 +4986,21 @@ export default function App() {
     ];
     const totalOpen = taskBuckets.overdue.length + taskBuckets.today.length + taskBuckets.upcoming.length + taskBuckets.nodue.length;
 
+    const submitQuickTask = () => {
+      const text = qaTaskTextRef.current?.value || "";
+      if (!text.trim()) return;
+      addTask(qaTaskLeadRef.current?.value || "_none", text, qaTaskDueRef.current?.value || "");
+      if (qaTaskTextRef.current) qaTaskTextRef.current.value = "";
+      if (qaTaskDueRef.current) qaTaskDueRef.current.value = "";
+      if (qaTaskLeadRef.current) qaTaskLeadRef.current.value = "_none";
+    };
+    const leadsByName = [...leads].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
     return (
       <div>
         <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Tasks & follow-ups</h1>
         <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 16px" }}>
-          {totalOpen === 0 ? "No open follow-ups yet — schedule one from any lead's detail page" : `${totalOpen} open across all leads`}
+          {totalOpen === 0 ? "No open follow-ups yet — add one below, with or without a lead" : `${totalOpen} open across all leads`}
         </p>
 
         <div style={{ display: "flex", gap: isMobile ? 8 : 12, marginBottom: 16, flexWrap: "wrap" }}>
@@ -4574,12 +5010,49 @@ export default function App() {
           <StatCard icon={CheckCircle2} label="Completed" value={allTasks.filter(t => t.done).length} color={C.teal} isMobile={isMobile} />
         </div>
 
+        {/* Quick-add: create a task from here, optionally tied to a lead */}
+        <Card style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
+            <input
+              type="text" ref={qaTaskTextRef} defaultValue=""
+              placeholder="What needs to happen next?"
+              onKeyDown={e => { if (e.key === "Enter") submitQuickTask(); }}
+              style={{
+                flex: 1, padding: "10px 12px", background: C.bgCard, border: `1px solid ${C.border}`,
+                borderRadius: 8, color: C.text, fontSize: 13, outline: "none",
+              }}
+            />
+            <select
+              ref={qaTaskLeadRef} defaultValue="_none"
+              style={{
+                padding: "10px 12px", background: C.bgCard, border: `1px solid ${C.border}`,
+                borderRadius: 8, color: C.text, fontSize: 13, outline: "none",
+                colorScheme: "dark", width: isMobile ? "100%" : 180,
+              }}
+            >
+              <option value="_none">No lead</option>
+              {leadsByName.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+            <input
+              type="date" ref={qaTaskDueRef} defaultValue=""
+              style={{
+                padding: "10px 12px", background: C.bgCard, border: `1px solid ${C.border}`,
+                borderRadius: 8, color: C.text, fontSize: 13, outline: "none",
+                colorScheme: "dark", width: isMobile ? "100%" : 160,
+              }}
+            />
+            <button onClick={submitQuickTask} style={{ ...btnPrimary() }}>
+              <Plus size={14} /> Add
+            </button>
+          </div>
+        </Card>
+
         {totalOpen === 0 && taskBuckets.completed.length === 0 ? (
           <Card>
             <EmptyState
               icon={CalendarPlus}
               title="No follow-ups scheduled yet"
-              message="Open any lead, then add a follow-up under the Follow-ups section. It'll show up here grouped by due date."
+              message="Add one above — with or without a lead — or from any lead's Follow-ups section. Tasks show up here grouped by due date."
               action={
                 <button onClick={() => setView("leads")} style={{ ...btnPrimary(), marginTop: 16 }}>
                   Go to leads
@@ -4621,7 +5094,7 @@ export default function App() {
                             fontSize: 11, cursor: "pointer", padding: 0,
                           }}>{t.lead.name}</button>
                         )}
-                        <span>Due {t.due === todayStr ? "today" : t.due ? formatDate(t.due) : "—"}</span>
+                        <span>{t.due === todayStr ? "Due today" : taskHasDue(t) ? `Due ${formatDate(t.due)}` : "No due date"}</span>
                       </div>
                     </div>
                     <button onClick={() => deleteTask(t.leadId, t.id)} style={{
@@ -6173,12 +6646,12 @@ export default function App() {
 
     useEffect(() => {
       (async () => {
-        const { data: mem } = await supabase.from("org_members").select("org_id").limit(1).maybeSingle();
-        if (!mem?.org_id) { setBrand({}); return; }
-        const { data: org } = await supabase.from("organizations").select("email_branding").eq("id", mem.org_id).maybeSingle();
-        setBrand(org?.email_branding || {});
+        if (!org?.id) { setBrand({}); return; }
+        const { data: orgRow } = await supabase.from("organizations").select("email_branding").eq("id", org.id).maybeSingle();
+        setBrand(orgRow?.email_branding || {});
       })();
-    }, []);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [org?.id]);
 
     const [preview, setPreview] = useState({});
     useEffect(() => { if (brand) setPreview(brand); }, [brand]);
@@ -6193,8 +6666,8 @@ export default function App() {
       setSaving(true);
       const payload = {};
       fields.forEach(f => { payload[f] = refs.current[f]?.value || ""; });
-      const { data: mem } = await supabase.from("org_members").select("org_id").limit(1).maybeSingle();
-      const { error } = await supabase.from("organizations").update({ email_branding: payload }).eq("id", mem.org_id);
+      if (!org?.id) { setSaving(false); setToast({ message: "No workspace found.", kind: "error" }); return; }
+      const { error } = await supabase.from("organizations").update({ email_branding: payload }).eq("id", org.id);
       setSaving(false);
       setToast({ message: error ? ("Save failed: " + error.message) : "Email branding saved", kind: error ? "error" : "success" });
       if (!error) setBrand(payload);
@@ -6598,20 +7071,22 @@ async function triskopeSubmit(e){
     const idxRef = useRef({});
 
     const loadConns = async () => {
+      if (!org?.id) { setConns([]); return; }
       const { data } = await supabase
         .from("idx_connections")
         .select("id, vendor, format, label, feed_url, login_id, markets, status, last_sync_at, last_error, listings_count, created_at")
+        .eq("org_id", org.id)
         .order("created_at", { ascending: false });
       setConns(data || []);
     };
-    useEffect(() => { loadConns(); }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { loadConns(); }, [org?.id]);
 
     const saveConn = async () => {
       setSaving(true);
-      const { data: mem } = await supabase.from("org_members").select("org_id").limit(1).maybeSingle();
-      if (!mem?.org_id) { setSaving(false); setToast({ message: "No workspace found.", kind: "error" }); return; }
+      if (!org?.id) { setSaving(false); setToast({ message: "No workspace found.", kind: "error" }); return; }
       const payload = {
-        org_id: mem.org_id,
+        org_id: org.id,
         vendor: draft.vendor,
         format: draft.format,
         label: (idxRef.current.label?.value || "").trim() || `${draft.vendor} feed`,
@@ -6637,9 +7112,8 @@ async function triskopeSubmit(e){
     const [syncing, setSyncing] = useState(false);
     const syncNow = async () => {
       setSyncing(true);
-      const { data: mem } = await supabase.from("org_members").select("org_id").limit(1).maybeSingle();
-      if (!mem?.org_id) { setSyncing(false); setToast({ message: "No workspace found.", kind: "error" }); return; }
-      const { data, error } = await supabase.functions.invoke("idx-sync", { body: { org_id: mem.org_id } });
+      if (!org?.id) { setSyncing(false); setToast({ message: "No workspace found.", kind: "error" }); return; }
+      const { data, error } = await supabase.functions.invoke("idx-sync", { body: { org_id: org.id } });
       setSyncing(false);
       let detail = data?.error || error?.message;
       if (error?.context && typeof error.context.json === "function") {
@@ -6795,6 +7269,101 @@ async function triskopeSubmit(e){
     );
   };
 
+  // ----- TEAM (owner-only: invite teammates as Agent / Team Lead) -----
+  const TeamView = () => {
+    const [members, setMembers] = useState(null);
+    const [inviteEmail, setInviteEmail] = useState("");
+    const [inviteRole, setInviteRole] = useState("agent");
+    const [inviting, setInviting] = useState(false);
+
+    const loadMembers = async () => {
+      if (!org?.id) { setMembers([]); return; }
+      const { data, error } = await supabase.functions.invoke("team-members", { body: { org_id: org.id } });
+      if (error || data?.error) { setToast({ message: "Couldn't load team: " + (data?.error || error?.message), kind: "error" }); setMembers([]); return; }
+      setMembers(data.members || []);
+    };
+    useEffect(() => { loadMembers(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [org?.id]);
+
+    const submitInvite = async () => {
+      const email = inviteEmail.trim().toLowerCase();
+      if (!email || !org?.id) return;
+      setInviting(true);
+      const { data, error } = await supabase.functions.invoke("team-invite", { body: { org_id: org.id, email, role: inviteRole } });
+      setInviting(false);
+      if (error || data?.error) {
+        let detail = data?.error || error?.message || "Something went wrong.";
+        try { if (error?.context && typeof error.context.json === "function") { const b = await error.context.json(); if (b?.error) detail = b.error; } } catch { /* keep detail */ }
+        setToast({ message: "Invite failed: " + detail, kind: "error" });
+        return;
+      }
+      setInviteEmail(""); setInviteRole("agent");
+      setToast({ message: data.mode === "added_existing_user" ? "Added to the team." : "Invite sent — they'll get an email to set up.", kind: "success" });
+      loadMembers();
+    };
+
+    const roleLabel = (r) => r === "owner" ? "Owner" : r === "team_lead" ? "Team Lead" : "Agent";
+    const roleColor = (r) => r === "owner" ? C.gold : r === "team_lead" ? C.teal : C.textMuted;
+    const inputStyle = { width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" };
+    const lbl = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim, marginBottom: 6 };
+
+    return (
+      <div>
+        <div style={pageHeader(isMobile)}>
+          <div>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Team</h1>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Invite teammates to {org?.name ?? "this workspace"} and set their access.</p>
+          </div>
+        </div>
+
+        <Card style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: "0 0 16px" }}>Invite a teammate</h3>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 240px" }}>
+              <label style={lbl}>Email</label>
+              <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitInvite(); }} placeholder="teammate@email.com" style={inputStyle} />
+            </div>
+            <div style={{ flex: "0 1 180px" }}>
+              <label style={lbl}>Access</label>
+              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} style={inputStyle}>
+                <option value="agent">Agent</option>
+                <option value="team_lead">Team Lead</option>
+              </select>
+            </div>
+            <button onClick={submitInvite} disabled={!inviteEmail.trim() || inviting} style={{ ...btnPrimary(), opacity: (!inviteEmail.trim() || inviting) ? 0.6 : 1 }}>
+              {inviting ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <UserPlus size={14} />}
+              {inviting ? "Sending…" : "Send invite"}
+            </button>
+          </div>
+          <p style={{ fontSize: 12.5, color: C.textMuted, margin: "12px 0 0", lineHeight: 1.6 }}>
+            <strong style={{ color: C.text }}>Agent</strong> works their own leads. <strong style={{ color: C.text }}>Team Lead</strong> can also assign leads to agents, run the round-robin, and delete leads. Only owners can invite.
+          </p>
+        </Card>
+
+        <Card>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: "0 0 4px" }}>Members</h3>
+          <p style={{ fontSize: 13, color: C.textMuted, margin: "0 0 14px" }}>Everyone in {org?.name ?? "this workspace"}.</p>
+          {members === null ? (
+            <div style={{ color: C.textMuted, fontSize: 13 }}>Loading…</div>
+          ) : members.length === 0 ? (
+            <div style={{ color: C.textMuted, fontSize: 13 }}>No members yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {members.map((m) => (
+                <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  <Avatar name={m.email} size={34} color={roleColor(m.role)} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.email}</div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: roleColor(m.role), border: `1px solid ${roleColor(m.role)}44`, background: roleColor(m.role) + "14", borderRadius: 6, padding: "3px 8px" }}>{roleLabel(m.role)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  };
+
   const renderView = () => {
     switch (view) {
       case "inbox": return <InboxView />;
@@ -6812,6 +7381,7 @@ async function triskopeSubmit(e){
       case "communities": return <CommunitiesView />;
       case "preview": return <SitePreviewView />;
       case "agents": return <AgentsView />;
+      case "team": return <TeamView />;
       case "assistant": return <AssistantView />;
       case "ai": return <AIView />;
       case "billing": return <PlansView />;
@@ -7125,6 +7695,30 @@ async function triskopeSubmit(e){
         </nav>
 
         <div style={{ paddingTop: 16, borderTop: `1px solid ${C.bgDark2}`, marginTop: 16 }}>
+          {/* Workspace switcher */}
+          {orgs.length > 1 ? (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 9, color: C.textInvMuted, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600, marginBottom: 6 }}>Workspace</div>
+              <select
+                value={org?.id ?? ""}
+                onChange={(e) => switchOrg(e.target.value)}
+                style={{
+                  width: "100%", padding: "9px 10px", borderRadius: 8,
+                  background: C.bgDark2, color: C.textInv, border: `1px solid ${C.bgDark2}`,
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                {orgs.map(o => (
+                  <option key={o.id} value={o.id} style={{ color: "#111" }}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : org ? (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 9, color: C.textInvMuted, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600, marginBottom: 4 }}>Workspace</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.textInv, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{org.name}</div>
+            </div>
+          ) : null}
           {/* User block */}
           <div style={{
             display: "flex", alignItems: "center", gap: 10,
