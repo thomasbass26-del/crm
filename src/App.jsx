@@ -234,7 +234,7 @@ const PLANS = [
 // The Market Edge — 5-Stage Lead Incubation Funnel (+ Lost).
 // Colors progress cool -> warm -> hot to mirror passive -> active -> ready.
 const DEFAULT_STAGES = [
-  { id: "captured",   label: "Captured",   color: "#818cf8" }, // 01 Targeted Prospect Capture — indigo
+  { id: "captured",   label: "Captured",   color: "#818cf8", is_entry: true }, // 01 Targeted Prospect Capture — indigo
   { id: "scored",     label: "Scored",     color: "#a78bfa" }, // 02 Intent Scoring & Segmentation — purple
   { id: "nurturing",  label: "Nurturing",  color: "#5eead4" }, // 03 Multi-Channel Nurture Incubation — teal
   { id: "warm",       label: "Warm",       color: "#f59e0b" }, // 04 Warm Signal Detection & Escalation — amber
@@ -1817,7 +1817,7 @@ export default function App() {
     if (!orgId) return;
     const { data, error } = await supabase
       .from("pipeline_stages")
-      .select("id, label, color, position, hidden, system")
+      .select("id, label, color, position, hidden, system, is_entry, is_terminal, pauses_nurture")
       .eq("org_id", orgId)
       .order("position", { ascending: true });
     if (error) { console.error("pipeline_stages load failed:", error.message); return; }
@@ -2476,8 +2476,9 @@ export default function App() {
       phone: (f.phone?.value || "").trim() || null,
       source: (f.source?.value || "").trim() || "manual_entry",
       // Guard: only send a stage this org actually has (FK on org_id+stage),
-      // falling back to the first visible stage.
-      stage: STAGES.some(s => s.id === leadDraft.stage) ? leadDraft.stage : (STAGES[0]?.id || "captured"),
+      // falling back to the org's flagged entry stage, then first visible.
+      stage: STAGES.some(s => s.id === leadDraft.stage) ? leadDraft.stage
+        : (stagesAll.find(s => s.is_entry)?.id || STAGES[0]?.id || "captured"),
       score: Number(f.score?.value) || null,
       consent_email: false,
       consent_sms: false,

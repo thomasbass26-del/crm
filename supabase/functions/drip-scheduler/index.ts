@@ -45,6 +45,21 @@ function deferToQuietEnd(tz: string): string {
   return new Date(Date.now() + 6 * 3600 * 1000).toISOString();
 }
 
+// Terminal stages now come from pipeline_stages.is_terminal (per-org flag).
+// Fallback (org with no flagged stages) matches the legacy hardcoded list.
+const FALLBACK_TERMINAL = new Set(["delivered", "lost"]);
+
+async function loadTerminalStages(): Promise<Map<string, Set<string>>> {
+  const { data } = await supabase.from("pipeline_stages")
+    .select("org_id, id").eq("is_terminal", true);
+  const map = new Map<string, Set<string>>();
+  for (const r of data ?? []) {
+    if (!map.has(r.org_id)) map.set(r.org_id, new Set());
+    map.get(r.org_id)!.add(r.id);
+  }
+  return map;
+}
+
 async function stopEnrollment(id: string, reason: string) {
   await supabase.from("campaign_enrollments")
     .update({ status: "stopped", stop_reason: reason }).eq("id", id);
@@ -133,6 +148,7 @@ Deno.serve(async (req) => {
   }
 
   // ---------- PASS 2: process due enrollments ----------
+  const terminalByOrg = await loadTerminalStages();
   const { data: due } = await supabase.from("campaign_enrollments")
     .select("*, campaigns(id, name, status, org_id)")
     .eq("status", "active")
@@ -155,9 +171,9 @@ Deno.serve(async (req) => {
       const { data: lead } = await supabase.from("leads")
         .select("*").eq("id", e.lead_id).single();
       if (!lead) { await stopEnrollment(e.id, "lead missing"); summary.stopped++; continue; }
-      // "delivered" replaced the legacy "closed" stage after the per-org
-      // pipeline migration; "lost" is unchanged.
-      if (["delivered", "lost"].includes(lead.stage)) {
+      // Stop if lead's stage is flagged is_terminal for its org.
+      const terminalSet = terminalByOrg.get(e.org_id) ?? FALLBACK_TERMINAL;
+      if (terminalSet.has(lead.stage)) {
         await stopEnrollment(e.id, `lead ${lead.stage}`); summary.stopped++; continue;
       }
 

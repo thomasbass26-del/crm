@@ -89,13 +89,16 @@ Deno.serve(async (req) => {
       community_id: communityId ?? undefined,
     }).eq("id", leadId);
   } else {
+    // Entry stage comes from pipeline_stages.is_entry (per-org flag, exactly
+    // one enforced by partial unique index). Fallback to system-seeded
+    // "captured" if an org somehow has no flagged entry stage.
+    const { data: entryStage } = await supabase.from("pipeline_stages")
+      .select("id").eq("org_id", org.id).eq("is_entry", true).maybeSingle();
+
     const { data: lead, error } = await supabase.from("leads").insert({
       org_id: org.id,
       name, email, phone,
-      // "captured" is the system-seeded first stage every org is guaranteed to
-      // have (the old "fresh" value predates per-org pipeline_stages and would
-      // violate the composite FK).
-      stage: "captured",
+      stage: entryStage?.id ?? "captured",
       source: String(body.source ?? "lead-form"),
       community_id: communityId,
       consent_email: consentEmail,

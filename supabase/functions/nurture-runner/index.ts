@@ -15,8 +15,21 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (b, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { "content-type": "application/json", ...CORS } });
 
-// Stages that mean "stop nurturing" — lead is active or done.
-const PAUSE_STAGES = ["warm", "delivered", "lost"];
+// Stages that mean "stop nurturing" now come from pipeline_stages.pauses_nurture
+// (per-org flag). Loaded once per run into a Map<org_id, Set<stage_id>>.
+// Fallback (org with no flagged stages) matches the legacy hardcoded list.
+const FALLBACK_PAUSE = new Set(["warm", "delivered", "lost"]);
+
+async function loadPauseStages(admin) {
+  const { data } = await admin.from("pipeline_stages")
+    .select("org_id, id").eq("pauses_nurture", true);
+  const map = new Map();
+  for (const r of data || []) {
+    if (!map.has(r.org_id)) map.set(r.org_id, new Set());
+    map.get(r.org_id).add(r.id);
+  }
+  return map;
+}
 
 // Simple {{token}} fill.
 function fill(tpl, vars) {
@@ -40,6 +53,7 @@ Deno.serve(async (req) => {
     .eq("status", "active");
   if (enrErr) return json({ error: "Load enrollments failed: " + enrErr.message }, 500);
 
+  const pauseByOrg = await loadPauseStages(admin);
   const now = Date.now();
 
   for (const en of enrolls || []) {
@@ -48,8 +62,9 @@ Deno.serve(async (req) => {
       .select("id, name, email, stage, consent_email, org_id").eq("id", en.lead_id).maybeSingle();
     if (!lead) { summary.skipped++; continue; }
 
-    // Pause-on-warm: if the lead has gone active/done, pause the drip.
-    if (PAUSE_STAGES.includes(lead.stage)) {
+    // Pause if lead's stage is flagged pauses_nurture for its org.
+    const pauseSet = pauseByOrg.get(lead.org_id) ?? FALLBACK_PAUSE;
+    if (pauseSet.has(lead.stage)) {
       await admin.from("nurture_enrollments").update({ status: "paused" }).eq("id", en.id);
       summary.paused++;
       continue;

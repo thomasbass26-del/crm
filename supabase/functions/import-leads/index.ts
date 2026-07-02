@@ -64,6 +64,12 @@ Deno.serve(async (req) => {
     .select("email").eq("org_id", orgId).not("email", "is", null);
   const seen = new Set((existing ?? []).map((e) => (e.email ?? "").toLowerCase()));
 
+  // Entry stage from pipeline_stages.is_entry (one per org, partial unique
+  // index). Fallback to system-seeded "captured".
+  const { data: entryStage } = await admin.from("pipeline_stages")
+    .select("id").eq("org_id", orgId).eq("is_entry", true).maybeSingle();
+  const entryStageId = entryStage?.id ?? "captured";
+
   const now = new Date().toISOString();
   const attestation = (attestEmail || attestSms) ? {
     method: "bulk_import_attestation",
@@ -90,9 +96,7 @@ Deno.serve(async (req) => {
       org_id: orgId,
       name: name || email || phone,
       email, phone,
-      // "captured" is the system-seeded first stage; the legacy "fresh" value
-      // violates the composite FK to pipeline_stages.
-      stage: "captured",
+      stage: entryStageId,
       source,
       consent_email: attestEmail,
       consent_sms: attestSms && !!phone,

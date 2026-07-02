@@ -8,5 +8,6 @@ dist/
 .DS_Store
 
 # session backups + supabase CLI temp
+*.bak
 *.bak.*
 supabase/.temp/
