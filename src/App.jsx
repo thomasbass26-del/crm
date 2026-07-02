@@ -2449,7 +2449,7 @@ export default function App() {
     ];
     const body = samples[Math.floor(Math.random() * samples.length)];
     const { data, error } = await supabase.from("messages")
-      .insert({ lead_id: leadId, direction: "inbound", channel, body })
+      .insert({ org_id: org?.id, lead_id: leadId, direction: "inbound", channel, body })
       .select()
       .single();
     if (error) { setToast({ message: "Couldn't simulate inbound: " + error.message, kind: "error" }); return; }
