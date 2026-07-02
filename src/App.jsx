@@ -2477,7 +2477,7 @@ export default function App() {
       source: (f.source?.value || "").trim() || "manual_entry",
       // Guard: only send a stage this org actually has (FK on org_id+stage),
       // falling back to the org's flagged entry stage, then first visible.
-      stage: STAGES.some(s => s.id === leadDraft.stage) ? leadDraft.stage
+      stage: STAGES.some(s => s.id === f.stage?.value) ? f.stage.value
         : (stagesAll.find(s => s.is_entry)?.id || STAGES[0]?.id || "captured"),
       score: Number(f.score?.value) || null,
       consent_email: false,
@@ -2489,11 +2489,14 @@ export default function App() {
     `).single();
     setAddingLead(false);
     if (error) { setToast({ message: "Couldn't add lead: " + error.message, kind: "error" }); return; }
-    // Log an initial activity event to the real lead_activities table
-    await supabase.from("lead_activities").insert({
-      org_id: mem.org_id, lead_id: data.id, type: "note",
-      body: "Lead created manually", internal: true,
-    });
+    // Log an initial activity event to the real lead_activities table.
+    // Non-fatal: never let a logging failure block the success path.
+    try {
+      await supabase.from("lead_activities").insert({
+        org_id: org.id, lead_id: data.id, type: "note",
+        body: "Lead created manually", internal: true,
+      });
+    } catch (e) { console.error("activity log failed:", e); }
     const shaped = {
       id: data.id, name: data.name, email: data.email, phone: data.phone,
       source: data.source, status: "new", stage: data.stage, score: data.score,
@@ -5383,7 +5386,6 @@ export default function App() {
       color: C.text, fontSize: 13, outline: "none",
     };
     const labelStyle = { display: "block", fontSize: 11, fontWeight: 600, color: C.textDim, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" };
-    const setField = (key, val) => setLeadDraft(prev => ({ ...prev, [key]: val }));
     return (
       <div onClick={() => !addingLead && setShowAddLead(false)} style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
@@ -5424,7 +5426,7 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
               <div>
                 <label style={labelStyle}>Status</label>
-                <select value={leadDraft.status} onChange={e => setField("status", e.target.value)} style={selectStyle()}>
+                <select ref={el => leadFormRef.current.status = el} defaultValue="new" style={selectStyle()}>
                   <option value="new">New</option>
                   <option value="nurture">Nurture</option>
                   <option value="hot">Hot</option>
@@ -5433,7 +5435,9 @@ export default function App() {
               </div>
               <div>
                 <label style={labelStyle}>Stage</label>
-                <select value={leadDraft.stage} onChange={e => setField("stage", e.target.value)} style={selectStyle()}>
+                <select ref={el => leadFormRef.current.stage = el}
+                  defaultValue={stagesAll.find(s => s.is_entry)?.id || STAGES[0]?.id || "captured"}
+                  style={selectStyle()}>
                   {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </div>
@@ -5455,7 +5459,7 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
               <div>
                 <label style={labelStyle}>Interest</label>
-                <select value={leadDraft.interest} onChange={e => setField("interest", e.target.value)} style={selectStyle()}>
+                <select ref={el => leadFormRef.current.interest = el} defaultValue="Buying" style={selectStyle()}>
                   <option value="Buying">Buying</option>
                   <option value="Selling">Selling</option>
                   <option value="Investing">Investing</option>
