@@ -242,6 +242,10 @@ const DEFAULT_STAGES = [
   { id: "lost",       label: "Lost",       color: "#55557a" }, // dropped out — dim
 ];
 
+// Public subscriber-site renderer (triskope-sites on Vercel). Preview iframes
+// point here with ?slug= until per-org DNS (slug.triskope.ai) is wired.
+const SITES_BASE = import.meta.env.VITE_SITES_BASE || "https://triskope-sites.vercel.app";
+
 // Role hierarchy for permission checks (owner ⊇ team_lead ⊇ agent).
 const ROLE_RANK = { owner: 3, team_lead: 2, agent: 1 };
 const ACTION_MIN_RANK = {
@@ -5746,6 +5750,44 @@ export default function App() {
   };
 
   const SitePreviewView = () => {
+    // LIVE preview: if this org has authored site content, show their real
+    // rendered site (fresh=1 skips caches so saves appear immediately).
+    const hasSite = !!(org?.site_config && Object.keys(org.site_config).length > 0 && org?.slug);
+    const [previewKey, setPreviewKey] = useState(0);
+    if (hasSite) {
+      const liveUrl = `${SITES_BASE}/?slug=${encodeURIComponent(org.slug)}&fresh=1`;
+      return (
+        <div>
+          <div style={pageHeader(isMobile)}>
+            <div>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Site preview</h1>
+              <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
+                Your live site, rendered from what you saved in My Website.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setPreviewKey(k => k + 1)} style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
+                background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
+                color: C.text, fontSize: 13, fontWeight: 500, cursor: "pointer", minHeight: 44,
+              }}><RefreshCw size={14} /> Refresh</button>
+              <a href={liveUrl} target="_blank" rel="noreferrer" style={{ ...btnPrimary(), textDecoration: "none" }}>
+                <Globe size={14} /> Open site
+              </a>
+            </div>
+          </div>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+            <iframe
+              key={previewKey}
+              src={liveUrl}
+              title="Live site preview"
+              style={{ width: "100%", height: "72vh", border: "none", display: "block" }}
+            />
+          </div>
+        </div>
+      );
+    }
+    // DEMO preview (no site authored yet)
     const agent = AGENTS.find(a => a.id === previewAgentId) || AGENTS[0];
     const community = COMMUNITIES.find(c => c.id === previewCommunityId) || COMMUNITIES[0];
     const matchedReport = REPORTS.find(r => r.title.toLowerCase().includes(community.area.toLowerCase().split(" ")[0])) || REPORTS[0];
@@ -6903,15 +6945,24 @@ export default function App() {
         <div style={pageHeader(isMobile)}>
           <div>
             <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>My Website</h1>
-            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Edit your site content here. Save, and Triskope republishes your live site.</p>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Edit your site content here. Saves go live on your site right away.</p>
           </div>
-          <button onClick={save} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>
-            {saving ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={14} />}
-            {saving ? "Saving…" : "Save changes"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {savedAt && org?.slug && (
+              <a href={`${SITES_BASE}/?slug=${encodeURIComponent(org.slug)}&fresh=1`} target="_blank" rel="noreferrer" style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
+                background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
+                color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none", minHeight: 44,
+              }}><Globe size={14} /> View site</a>
+            )}
+            <button onClick={save} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>
+              {saving ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={14} />}
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
         </div>
 
-        {savedAt && <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>Last saved {new Date(savedAt).toLocaleString()} · changes go live after Triskope republishes.</div>}
+        {savedAt && <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>Last saved {new Date(savedAt).toLocaleString()} · your live site updates immediately.</div>}
         {err && <Card style={{ marginBottom: 16, background: C.red + "0c", border: `1px solid ${C.red}33` }}><div style={{ fontSize: 13, color: C.red }}>{err}</div></Card>}
 
         <Group title="Basics" sub="Your name and how clients reach you.">
