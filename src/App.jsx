@@ -1631,6 +1631,12 @@ export default function App() {
     try { return new Set(JSON.parse(localStorage.getItem("tme-notif-reads") || "[]")); }
     catch { return new Set(); }
   });
+  // Dismissed notifications — hidden from the feed entirely. Same persistence
+  // pattern as reads. Dismissing never deletes the underlying lead or task.
+  const [notifDismissedIds, setNotifDismissedIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("tme-notif-dismissed") || "[]")); }
+    catch { return new Set(); }
+  });
 
   // Messages
   const [messages, setMessages] = useState([]);       // messages for currently selected lead
@@ -2569,7 +2575,7 @@ export default function App() {
   const listingsSource = idxListings.length > 0 ? idxListings : LISTINGS;
 
   // Real inbox: new leads + due/overdue tasks (no fabricated events)
-  const inboxItems = (() => {
+  const rawNotifItems = (() => {
     const items = [];
     const cutoff = Date.now() - 14 * 86400000;
     for (const l of leads) {
@@ -2602,6 +2608,8 @@ export default function App() {
     });
     return items.sort((a, b) => b.ts - a.ts).slice(0, 40);
   })();
+  // The visible feed = raw items minus dismissed ones.
+  const inboxItems = rawNotifItems.filter(n => !notifDismissedIds.has(n.id));
 
   const filteredListings = listingsSource.filter(L => {
     if (listingCommunity !== "all" && L.community !== listingCommunity) return false;
@@ -2620,19 +2628,28 @@ export default function App() {
 
   const unreadNotifs = inboxItems.filter(n => !notifReadIds.has(n.id)).length;
 
-  // Persist read ids, trimmed to ids still in the feed (items age out at 14
-  // days) so localStorage can't grow unbounded.
-  const persistNotifReads = (set) => {
-    const live = new Set(inboxItems.map(n => n.id));
-    try { localStorage.setItem("tme-notif-reads", JSON.stringify([...set].filter(id => live.has(id)))); } catch { /* ignore */ }
+  // Persist read/dismissed ids, trimmed to ids still derivable (items age out
+  // at 14 days) so localStorage can't grow unbounded. Trim against the RAW
+  // list — trimming against the visible list would resurrect dismissed items.
+  const persistNotifSet = (key, set) => {
+    const live = new Set(rawNotifItems.map(n => n.id));
+    try { localStorage.setItem(key, JSON.stringify([...set].filter(id => live.has(id)))); } catch { /* ignore */ }
   };
   const markNotifRead = (id) => setNotifReadIds(prev => {
-    const next = new Set(prev); next.add(id); persistNotifReads(next); return next;
+    const next = new Set(prev); next.add(id); persistNotifSet("tme-notif-reads", next); return next;
   });
   const markAllNotifsRead = () => {
     const next = new Set(inboxItems.map(n => n.id));
-    setNotifReadIds(next); persistNotifReads(next);
+    setNotifReadIds(next); persistNotifSet("tme-notif-reads", next);
     setToast({ message: "All caught up", kind: "success" });
+  };
+  const dismissNotif = (id) => setNotifDismissedIds(prev => {
+    const next = new Set(prev); next.add(id); persistNotifSet("tme-notif-dismissed", next); return next;
+  });
+  const clearAllNotifs = () => {
+    const next = new Set([...notifDismissedIds, ...inboxItems.map(n => n.id)]);
+    setNotifDismissedIds(next); persistNotifSet("tme-notif-dismissed", next);
+    setToast({ message: "Notifications cleared", kind: "success" });
   };
   const jumpToLead = (leadId) => {
     const lead = leads.find(l => l.id === leadId);
@@ -4952,6 +4969,14 @@ export default function App() {
             }}>
               <CheckCheck size={14} /> Mark all read
             </button>
+            <button onClick={clearAllNotifs} disabled={inboxItems.length === 0} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
+              background: C.bg, border: `1px solid ${C.border}`,
+              borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500,
+              cursor: inboxItems.length ? "pointer" : "not-allowed", opacity: inboxItems.length ? 1 : 0.5, minHeight: 44,
+            }}>
+              <X size={14} /> Clear all
+            </button>
           </div>
         </div>
 
@@ -4992,6 +5017,21 @@ export default function App() {
                         {n.leadId && <span style={{ fontSize: 12, color: C.teal, fontWeight: 600 }}>View lead →</span>}
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); dismissNotif(n.id); }}
+                      aria-label="Dismiss notification"
+                      title="Dismiss"
+                      style={{
+                        background: "none", border: "none", color: C.textDim,
+                        cursor: "pointer", padding: 8, flexShrink: 0,
+                        minWidth: 32, minHeight: 32, borderRadius: 8,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.color = C.text; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = C.textDim; }}
+                    >
+                      <X size={15} />
+                    </button>
                   </div>
                 </Card>
               );
