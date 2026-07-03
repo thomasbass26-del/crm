@@ -6893,6 +6893,62 @@ export default function App() {
       </div>
     );
 
+    // ----- Image upload (Supabase Storage bucket: site-assets) -----
+    // Status is shown by mutating the button via refs, NOT React state:
+    // any state change here remounts the form and wipes unsaved inputs.
+    const uploadSiteImage = async (file, onStatus) => {
+      if (!file) return null;
+      if (file.size > 5 * 1024 * 1024) { onStatus?.("Max 5MB"); return null; }
+      if (!/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
+      const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
+      const path = `${org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from("site-assets")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) { onStatus?.("Upload failed"); console.error("site image upload:", error); return null; }
+      const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
+      return data?.publicUrl || null;
+    };
+
+    const UploadBtn = ({ onUrl }) => {
+      const btnRef = useRef(null);
+      const fileInRef = useRef(null);
+      const handle = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+        const btn = btnRef.current;
+        if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+        const url = await uploadSiteImage(file, (msg) => { if (btn) btn.textContent = msg; });
+        if (url) {
+          onUrl(url);
+          if (btn) btn.textContent = "Uploaded ✓";
+        }
+        setTimeout(() => { if (btn) { btn.textContent = "Upload"; btn.disabled = false; } }, url ? 1600 : 2500);
+      };
+      return (
+        <>
+          <input ref={fileInRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+            style={{ display: "none" }} onChange={handle} />
+          <button ref={btnRef} type="button" onClick={() => fileInRef.current?.click()} style={{
+            padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`,
+            borderRadius: 8, color: C.text, fontSize: 12.5, fontWeight: 600,
+            cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+          }}>Upload</button>
+        </>
+      );
+    };
+
+    // Image field: paste a URL or upload a file (fills the URL for you).
+    const ImgText = ({ k, label, ph }) => (
+      <div style={{ marginBottom: 14 }}>
+        <label style={lblStyle}>{label}</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input ref={setR(k)} defaultValue={val(k)} placeholder={ph || ""} style={{ ...inStyle, flex: 1 }} />
+          <UploadBtn onUrl={(url) => { if (R.current[k]) R.current[k].value = url; }} />
+        </div>
+      </div>
+    );
+
     const save = async () => {
       setSaving(true); setErr("");
       const site_config = {
@@ -6978,13 +7034,13 @@ export default function App() {
           <Text k="hero_eyebrow" label="Small label above headline" ph="e.g. Your specialty · Your City, ST" />
           <Text k="hero_headline" label="Headline" ph="e.g. Find your dream home" />
           <Text k="hero_subtext" label="Subtext" ph="One or two sentences about what you do." />
-          <Text k="hero_image" label="Hero background image URL" ph="https://…" />
+          <ImgText k="hero_image" label="Hero background image" ph="https://… or upload" />
           <Text k="hero_alt" label="Hero image description (for accessibility/SEO)" ph="Describe your hero image" />
         </Group>
 
         <Group title="About you" sub="Your bio. Separate paragraphs with a blank line.">
           <textarea defaultValue={about} onChange={e => setAbout(e.target.value)} rows={6} style={{ ...inStyle, resize: "vertical", minHeight: 120 }} placeholder="Tell clients who you are…" />
-          <div style={{ marginTop: 14 }}><Text k="headshot" label="Your photo URL" ph="https://…" /></div>
+          <div style={{ marginTop: 14 }}><ImgText k="headshot" label="Your photo" ph="https://… or upload" /></div>
           <Text k="footer_tagline" label="Footer tagline" ph="Real estate in your area." />
         </Group>
 
@@ -6998,7 +7054,10 @@ export default function App() {
                 <input defaultValue={L.sqft} onChange={e => updRow(setListings, listings, i, "sqft", e.target.value)} placeholder="Sqft" style={inStyle} />
               </div>
               <input defaultValue={L.address} onChange={e => updRow(setListings, listings, i, "address", e.target.value)} placeholder="Address or community" style={{ ...inStyle, marginBottom: 8 }} />
-              <input defaultValue={L.image} onChange={e => updRow(setListings, listings, i, "image", e.target.value)} placeholder="Photo URL" style={inStyle} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input defaultValue={L.image} onChange={e => updRow(setListings, listings, i, "image", e.target.value)} placeholder="Photo URL or upload" style={{ ...inStyle, flex: 1 }} />
+                <UploadBtn onUrl={(url) => setListings(prev => prev.map((row, idx) => idx === i ? { ...row, image: url } : row))} />
+              </div>
               <button onClick={() => setListings(listings.filter((_, idx) => idx !== i))} style={{ marginTop: 8, background: "none", border: "none", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>Remove</button>
             </div>
           ))}
@@ -7010,7 +7069,10 @@ export default function App() {
             <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
               <input defaultValue={h.name} onChange={e => updRow(setHoods, hoods, i, "name", e.target.value)} placeholder="Community name" style={{ ...inStyle, marginBottom: 8 }} />
               <input defaultValue={h.blurb} onChange={e => updRow(setHoods, hoods, i, "blurb", e.target.value)} placeholder="One-line description" style={{ ...inStyle, marginBottom: 8 }} />
-              <input defaultValue={h.image} onChange={e => updRow(setHoods, hoods, i, "image", e.target.value)} placeholder="Photo URL" style={inStyle} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input defaultValue={h.image} onChange={e => updRow(setHoods, hoods, i, "image", e.target.value)} placeholder="Photo URL or upload" style={{ ...inStyle, flex: 1 }} />
+                <UploadBtn onUrl={(url) => setHoods(prev => prev.map((row, idx) => idx === i ? { ...row, image: url } : row))} />
+              </div>
               <button onClick={() => setHoods(hoods.filter((_, idx) => idx !== i))} style={{ marginTop: 8, background: "none", border: "none", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>Remove</button>
             </div>
           ))}
@@ -7030,7 +7092,7 @@ export default function App() {
         <Group title="SEO" sub="How your site appears in Google and when shared.">
           <Text k="seo_title" label="Page title" ph="Your Name | Area Real Estate" />
           <Text k="seo_description" label="Meta description" ph="One sentence describing your service and area." />
-          <Text k="og_image" label="Social share image URL" ph="https://…" />
+          <ImgText k="og_image" label="Social share image" ph="https://… or upload" />
           <Text k="city" label="City" ph="Your city" />
           <Text k="region" label="State" ph="ST" />
           <Text k="areas_served" label="Areas served (comma-separated)" ph="Your areas, comma-separated" />
