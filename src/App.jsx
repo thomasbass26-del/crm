@@ -1707,7 +1707,7 @@ export default function App() {
       const roleByOrg = Object.fromEntries(mems.map(m => [m.org_id, m.role]));
       const { data: orgRows } = await supabase
         .from("organizations")
-        .select("id, name, slug, site_config, features")
+        .select("id, name, slug, site_config, features, custom_domain")
         .in("id", mems.map(m => m.org_id));
       if (!orgRows || orgRows.length === 0) return;
       const list = orgRows
@@ -6596,7 +6596,7 @@ export default function App() {
 
     const loadAgents = async () => {
       // Show orgs the owner can see (their own + any they created). Read-only list.
-      const { data } = await supabase.from("organizations").select("id, name, slug, site_config, features").order("name");
+      const { data } = await supabase.from("organizations").select("id, name, slug, site_config, features, custom_domain").order("name");
       setAgents(data || []);
     };
     useEffect(() => { loadAgents(); }, []);
@@ -6868,6 +6868,9 @@ export default function App() {
     // List structures kept in local state (add/remove rows)
     const [listings, setListings] = useState(() => cfg.curated_listings || []);
     const [hoods, setHoods] = useState(() => cfg.neighborhoods || []);
+    const [stats, setStats] = useState(() => cfg.stats || []);
+    const [testimonials, setTestimonials] = useState(() => cfg.testimonials || []);
+    const [solds, setSolds] = useState(() => cfg.sold_portfolio || []);
     const [about, setAbout] = useState(() => (cfg.about || []).join("\n\n"));
     const [saving, setSaving] = useState(false);
     const [savedAt, setSavedAt] = useState(cfg._saved_at || null);
@@ -7004,14 +7007,23 @@ export default function App() {
         },
         curated_listings: listings,
         neighborhoods: hoods,
+        stats: stats.filter(s => s.value || s.label),
+        testimonials: testimonials.filter(t => t.quote),
+        sold_portfolio: solds.filter(s => s.address || s.image || s.price),
         _saved_at: new Date().toISOString(),
       };
-      const { data, error } = await supabase.functions.invoke("save-site-config", { body: { site_config } });
+      const body = { org_id: org.id, site_config };
+      // Domain changes are owner-only; only send when the owner edited it.
+      if (org?.role === "owner") {
+        const dom = (R.current.custom_domain?.value || "").trim();
+        if (dom !== (org.custom_domain || "")) body.custom_domain = dom;
+      }
+      const { data, error } = await supabase.functions.invoke("save-site-config", { body });
       setSaving(false);
       if (error || data?.error) { setErr(data?.error || error.message); return; }
       setSavedAt(site_config._saved_at);
-      setOrg(o => ({ ...o, site_config }));
-      setToast({ message: "Website saved. Triskope will republish your site shortly.", kind: "success" });
+      setOrg(o => ({ ...o, site_config, ...(body.custom_domain !== undefined ? { custom_domain: body.custom_domain || null } : {}) }));
+      setToast({ message: "Website saved — your live site updates immediately.", kind: "success" });
     };
 
     const updRow = (setter, list, i, key, value) => {
@@ -7102,6 +7114,50 @@ export default function App() {
           <button onClick={() => setHoods([...hoods, { name: "", blurb: "", image: "" }])} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"10px 16px", borderRadius:6, border:`1px solid ${C.border}`, background:"transparent", color:C.text, fontSize:12, fontWeight:700, letterSpacing:"0.04em", cursor:"pointer", marginTop:4 }}><Plus size={13} /> Add community</button>
         </Group>
 
+        <Group title="Production stats" sub="The numbers that prove your track record — shown as a stats band on your site. E.g. $48M / Sold in 2025, 120+ / Homes sold, 15 / Years experience.">
+          {stats.map((s, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+              <input defaultValue={s.value} onChange={e => updRow(setStats, stats, i, "value", e.target.value)} placeholder="$48M" style={{ ...inStyle, maxWidth: 140 }} />
+              <input defaultValue={s.label} onChange={e => updRow(setStats, stats, i, "label", e.target.value)} placeholder="Sold in 2025" style={{ ...inStyle, flex: 1 }} />
+              <button onClick={() => setStats(stats.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Remove</button>
+            </div>
+          ))}
+          {stats.length < 4 && (
+            <button onClick={() => setStats([...stats, { value: "", label: "" }])} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"10px 16px", borderRadius:6, border:`1px solid ${C.border}`, background:"transparent", color:C.text, fontSize:12, fontWeight:700, letterSpacing:"0.04em", cursor:"pointer", marginTop:4 }}><Plus size={13} /> Add stat</button>
+          )}
+        </Group>
+
+        <Group title="Testimonials" sub="Client quotes. Two or three strong ones beat ten weak ones.">
+          {testimonials.map((t, i) => (
+            <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+              <textarea defaultValue={t.quote} onChange={e => updRow(setTestimonials, testimonials, i, "quote", e.target.value)} rows={3} placeholder="What the client said…" style={{ ...inStyle, resize: "vertical", marginBottom: 8 }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <input defaultValue={t.name} onChange={e => updRow(setTestimonials, testimonials, i, "name", e.target.value)} placeholder="Client name" style={inStyle} />
+                <input defaultValue={t.detail} onChange={e => updRow(setTestimonials, testimonials, i, "detail", e.target.value)} placeholder="Sold in Carolina Forest" style={inStyle} />
+              </div>
+              <button onClick={() => setTestimonials(testimonials.filter((_, idx) => idx !== i))} style={{ marginTop: 8, background: "none", border: "none", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>Remove</button>
+            </div>
+          ))}
+          <button onClick={() => setTestimonials([...testimonials, { quote: "", name: "", detail: "" }])} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"10px 16px", borderRadius:6, border:`1px solid ${C.border}`, background:"transparent", color:C.text, fontSize:12, fontWeight:700, letterSpacing:"0.04em", cursor:"pointer", marginTop:4 }}><Plus size={13} /> Add testimonial</button>
+        </Group>
+
+        <Group title="Sold portfolio" sub="Recent sales that show your range. Price + photo is enough.">
+          {solds.map((L, i) => (
+            <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
+                <input defaultValue={L.price} onChange={e => updRow(setSolds, solds, i, "price", e.target.value)} placeholder="$1,150,000" style={inStyle} />
+                <input defaultValue={L.address} onChange={e => updRow(setSolds, solds, i, "address", e.target.value)} placeholder="Address or community" style={inStyle} />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input defaultValue={L.image} onChange={e => updRow(setSolds, solds, i, "image", e.target.value)} placeholder="Photo URL or upload" style={{ ...inStyle, flex: 1 }} />
+                <UploadBtn onUrl={(url) => setSolds(prev => prev.map((row, idx) => idx === i ? { ...row, image: url } : row))} />
+              </div>
+              <button onClick={() => setSolds(solds.filter((_, idx) => idx !== i))} style={{ marginTop: 8, background: "none", border: "none", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>Remove</button>
+            </div>
+          ))}
+          <button onClick={() => setSolds([...solds, { price: "", address: "", image: "" }])} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"10px 16px", borderRadius:6, border:`1px solid ${C.border}`, background:"transparent", color:C.text, fontSize:12, fontWeight:700, letterSpacing:"0.04em", cursor:"pointer", marginTop:4 }}><Plus size={13} /> Add sold property</button>
+        </Group>
+
         <Group title="Brand colors" sub="Hex values, e.g. #1d6b63. Leave defaults if unsure.">
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: 12 }}>
             <div><label style={lblStyle}>Accent (buttons, links)</label><input ref={setR("col_accent")} defaultValue={colors.accent || "#1d6b63"} style={inStyle} /></div>
@@ -7119,6 +7175,21 @@ export default function App() {
           <Text k="city" label="City" ph="Your city" />
           <Text k="region" label="State" ph="ST" />
           <Text k="areas_served" label="Areas served (comma-separated)" ph="Your areas, comma-separated" />
+        </Group>
+
+        <Group title="Custom domain" sub={org?.role === "owner" ? "Point your own domain at your site. After saving, Triskope activates it (usually within a day)." : "Only the workspace owner can change the domain."}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={lblStyle}>Your domain</label>
+            <input ref={setR("custom_domain")} defaultValue={org?.custom_domain || ""} placeholder="yourname.com" disabled={org?.role !== "owner"} style={{ ...inStyle, opacity: org?.role === "owner" ? 1 : 0.55 }} />
+          </div>
+          <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.7 }}>
+            At your domain registrar, add these DNS records:
+            <div style={{ fontFamily: "monospace", fontSize: 12.5, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", margin: "8px 0" }}>
+              A&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@&nbsp;&nbsp;&nbsp;&nbsp;76.76.21.21<br />
+              CNAME&nbsp;&nbsp;www&nbsp;&nbsp;cname.vercel-dns.com
+            </div>
+            Your site stays available at {org?.slug ? `${org.slug}.triskope.ai` : "your triskope.ai address"} either way.
+          </div>
         </Group>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>

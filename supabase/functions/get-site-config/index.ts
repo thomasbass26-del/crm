@@ -37,15 +37,21 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const slug = (url.searchParams.get("slug") ?? "").trim().toLowerCase();
-  if (!slug || !/^[a-z0-9-]{1,60}$/.test(slug)) {
-    return json({ error: "Valid slug required" }, 400);
+  const domain = (url.searchParams.get("domain") ?? "").trim().toLowerCase();
+
+  let query = supabase.from("organizations")
+    .select("id, name, slug, site_config, custom_domain");
+  if (slug && /^[a-z0-9-]{1,60}$/.test(slug)) {
+    query = query.eq("slug", slug);
+  } else if (domain && /^[a-z0-9.-]{4,253}$/.test(domain)) {
+    // Match with and without a www. prefix so either form works.
+    const bare = domain.replace(/^www\./, "");
+    query = query.or(`custom_domain.eq.${bare},custom_domain.eq.www.${bare}`);
+  } else {
+    return json({ error: "Valid slug or domain required" }, 400);
   }
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("id, name, slug, site_config")
-    .eq("slug", slug)
-    .maybeSingle();
+  const { data: org } = await query.maybeSingle();
 
   if (!org) return json({ error: "Site not found" }, 404);
   if (!org.site_config || Object.keys(org.site_config).length === 0) {
