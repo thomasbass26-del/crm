@@ -1,6 +1,7 @@
 -- ============================================================
 -- 2026-07-06 Plans + billing status on organizations
--- plan: pricing tier label (feature presets applied by admin fn).
+-- NOTE: plan column pre-existed as enum plan_tier
+-- (starter|pro|enterprise) — presets in admin-manage-org match it.
 -- billing_status: active | past_due | suspended.
 --   suspended = CRM locked, public site dark, lead capture off.
 -- Idempotent.

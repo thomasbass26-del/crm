@@ -34,10 +34,11 @@ function uidFromToken(token: string) {
 }
 
 // Tier presets: applying a plan sets these feature keys (others untouched).
+// Names must match the existing plan_tier Postgres enum: starter|pro|enterprise.
 const PLANS: Record<string, Record<string, boolean>> = {
-  starter: { communities: false, market_reports: false, ai_assistant: false },
-  growth:  { communities: true,  market_reports: true,  ai_assistant: false },
-  elite:   { communities: true,  market_reports: true,  ai_assistant: true },
+  starter:    { communities: false, market_reports: false, ai_assistant: false },
+  pro:        { communities: true,  market_reports: true,  ai_assistant: false },
+  enterprise: { communities: true,  market_reports: true,  ai_assistant: true },
 };
 const TOGGLEABLE = new Set(["communities", "market_reports", "ai_assistant", "auto_assign"]);
 const BILLING = new Set(["active", "past_due", "suspended"]);

@@ -2696,7 +2696,7 @@ export default function App() {
 
   // Paid-feature gating: locked features stay VISIBLE but show an upgrade
   // screen. Platform admins are never locked.
-  const FEATURE_PLANS = { communities: "Growth", market_reports: "Growth", ai_assistant: "Elite" };
+  const FEATURE_PLANS = { communities: "Pro", market_reports: "Pro", ai_assistant: "Enterprise" };
   const featureLocked = (f) => !!f && !isPlatformAdmin && !(org?.features?.[f]);
 
   const Card = ({ children, style = {}, hover = false, onClick }) => (
@@ -6985,7 +6985,7 @@ export default function App() {
                   <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: "0 0 12px" }}>Account</h3>
                   <label style={lbl}>Plan</label>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-                    {["starter", "growth", "elite"].map(p => (
+                    {["starter", "pro", "enterprise"].map(p => (
                       <button key={p} onClick={() => act("set_plan", { plan: p })} style={{
                         padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                         textTransform: "capitalize", cursor: "pointer",
