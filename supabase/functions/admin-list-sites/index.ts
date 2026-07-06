@@ -43,6 +43,50 @@ Deno.serve(async (req) => {
     .order("name");
   if (error) return json({ error: error.message }, 500);
 
+  // ---- Platform metrics ----
+  // Prices must match PlansView in the app.
+  const PRICES: Record<string, number> = { starter: 49, pro: 99, enterprise: 199 };
+  const THIRTY_D = Date.now() - 30 * 24 * 3600 * 1000;
+
+  const tierCounts: Record<string, number> = { starter: 0, pro: 0, enterprise: 0 };
+  const billingCounts: Record<string, number> = { active: 0, past_due: 0, suspended: 0 };
+  let mrr = 0, pastDueTotal = 0;
+  for (const o of orgs ?? []) {
+    tierCounts[o.plan] = (tierCounts[o.plan] ?? 0) + 1;
+    billingCounts[o.billing_status] = (billingCounts[o.billing_status] ?? 0) + 1;
+    const price = PRICES[o.plan] ?? 0;
+    // MRR counts subscribed accounts (active + past_due); suspended excluded.
+    if (o.billing_status === "active" || o.billing_status === "past_due") mrr += price;
+    if (o.billing_status === "past_due") pastDueTotal += price;
+  }
+
+  let totalUsers = 0, activeUsers30d = 0;
+  try {
+    const { data: usersPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const users = usersPage?.users ?? [];
+    totalUsers = users.length;
+    activeUsers30d = users.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at).getTime() > THIRTY_D).length;
+  } catch { /* metrics best-effort */ }
+
+  let leadsTotal = 0, leads30d = 0;
+  try {
+    const [{ count: lt }, { count: l30 }] = await Promise.all([
+      admin.from("leads").select("id", { count: "exact", head: true }),
+      admin.from("leads").select("id", { count: "exact", head: true })
+        .gte("created_at", new Date(THIRTY_D).toISOString()),
+    ]);
+    leadsTotal = lt ?? 0; leads30d = l30 ?? 0;
+  } catch { /* metrics best-effort */ }
+
+  const metrics = {
+    subscribers: (orgs ?? []).length,
+    tiers: tierCounts,
+    billing: billingCounts,
+    mrr, past_due_total: pastDueTotal,
+    users_total: totalUsers, users_active_30d: activeUsers30d,
+    leads_total: leadsTotal, leads_30d: leads30d,
+  };
+
   const sites = (orgs ?? []).map((o) => {
     const cfg = (o.site_config ?? {}) as Record<string, unknown>;
     return {
@@ -64,5 +108,5 @@ Deno.serve(async (req) => {
     };
   });
 
-  return json({ sites });
+  return json({ sites, metrics });
 });

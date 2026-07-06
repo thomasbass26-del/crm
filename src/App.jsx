@@ -6877,6 +6877,7 @@ export default function App() {
   // Manage brand colors, SEO, and domains across ALL subscriber sites.
   const SiteAdminView = () => {
     const [sites, setSites] = useState(null);
+    const [metrics, setMetrics] = useState(null);
     const [selId, setSelId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [err, setErr] = useState("");
@@ -6887,6 +6888,7 @@ export default function App() {
       const { data, error } = await supabase.functions.invoke("admin-list-sites", { body: {} });
       if (error || data?.error) { setErr(data?.error || error.message); return; }
       setSites(data.sites || []);
+      setMetrics(data.metrics || null);
     };
     useEffect(() => { load(); }, []);
 
@@ -6957,6 +6959,24 @@ export default function App() {
           </div>
         </div>
         {err && <Card style={{ marginBottom: 16, borderColor: C.red }}><p style={{ color: C.red, fontSize: 14, margin: 0 }}>{err}</p></Card>}
+        {metrics && (
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", marginBottom: 20 }}>
+            {[
+              { label: "MRR", value: `$${metrics.mrr.toLocaleString()}`, color: C.teal },
+              { label: "Past due", value: `$${metrics.past_due_total.toLocaleString()}`, color: metrics.past_due_total > 0 ? C.red : C.textDim, sub: `${metrics.billing.past_due || 0} account${(metrics.billing.past_due || 0) === 1 ? "" : "s"}` },
+              { label: "Subscribers", value: metrics.billing.active || 0, sub: `${metrics.subscribers} total · ${metrics.billing.suspended || 0} suspended` },
+              { label: "Active users", value: metrics.users_active_30d, sub: `of ${metrics.users_total} · last 30 days` },
+              { label: "Leads (30d)", value: metrics.leads_30d.toLocaleString(), sub: `${metrics.leads_total.toLocaleString()} all-time` },
+              { label: "Tiers", value: `${metrics.tiers.starter || 0} · ${metrics.tiers.pro || 0} · ${metrics.tiers.enterprise || 0}`, sub: "starter · pro · enterprise" },
+            ].map((t, i) => (
+              <Card key={i} style={{ padding: 16 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textDim, marginBottom: 6 }}>{t.label}</div>
+                <div style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 600, lineHeight: 1.1, color: t.color || C.text }}>{t.value}</div>
+                {t.sub && <div style={{ fontSize: 11.5, color: C.textDim, marginTop: 4 }}>{t.sub}</div>}
+              </Card>
+            ))}
+          </div>
+        )}
         {!sites ? <Card><p style={{ color: C.textMuted, margin: 0 }}>Loading sites…</p></Card> : (
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "280px 1fr", alignItems: "start" }}>
             <Card>
