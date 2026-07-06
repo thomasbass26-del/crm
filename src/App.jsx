@@ -1554,13 +1554,40 @@ export default function App() {
   // Permission check keyed on the active org's role (owner ⊇ team_lead ⊇ agent).
   const can = (action) => (ROLE_RANK[org?.role] ?? 0) >= (ACTION_MIN_RANK[action] ?? 0);
 
-  const [view, setView] = useState("dashboard");
+  const VALID_VIEWS = new Set(["dashboard","inbox","leads","pipeline","tasks","listings","sitetools","idx","connect","website","siteadmin","emailbrand","addagent","reports","communities","preview","agents","team","assistant","ai","billing"]);
+  const [view, setView] = useState(() => {
+    const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
+    return VALID_VIEWS.has(h) ? h : "dashboard";
+  });
   const [selectedLead, setSelectedLead] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Triskope staff flag (platform_admins table, RLS lets users read own row).
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [toast, setToast] = useState(null);
+
+  // Browser history sync: each view change becomes a history entry (#hash),
+  // so Back/Forward move between screens instead of leaving the app.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === `#${view}`) return;
+    if (!window.location.hash && view === "dashboard") {
+      window.history.replaceState({ view }, "", "#dashboard");
+    } else {
+      window.history.pushState({ view }, "", `#${view}`);
+    }
+  }, [view]);
+  useEffect(() => {
+    const onPop = () => {
+      const h = window.location.hash.replace("#", "");
+      setView(VALID_VIEWS.has(h) ? h : "dashboard");
+      setSelectedLead(null);
+      setSidebarOpen(false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // AI state
   const [aiOpen, setAiOpen] = useState(false);
