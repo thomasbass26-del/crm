@@ -109,6 +109,16 @@ Deno.serve(async (req) => {
     if (error) return json({ error: "Could not save lead" }, 500);
     leadId = lead.id;
 
+    // Persist any free-text the visitor wrote (message, property address for
+    // home-value requests, etc.) as a note on the lead's timeline. Non-fatal.
+    const notes = String(body.notes ?? "").trim().slice(0, 2000);
+    if (notes) {
+      const { error: nErr } = await supabase.from("lead_activities").insert({
+        org_id: org.id, lead_id: leadId, type: "note", body: notes, internal: true,
+      });
+      if (nErr) console.error("lead note insert failed:", nErr.message);
+    }
+
     // Auto-assign (opt-in per org via features.auto_assign): atomic round-robin
     // across org members, state + locking handled inside the RPC. Non-fatal.
     if ((org.features as Record<string, unknown> | null)?.auto_assign === true) {
