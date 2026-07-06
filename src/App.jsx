@@ -1557,6 +1557,8 @@ export default function App() {
   const [view, setView] = useState("dashboard");
   const [selectedLead, setSelectedLead] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Triskope staff flag (platform_admins table, RLS lets users read own row).
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [toast, setToast] = useState(null);
 
@@ -1704,6 +1706,9 @@ export default function App() {
     (async () => {
       const { data: mems } = await supabase.from("org_members").select("org_id, role");
       if (!mems || mems.length === 0) return;
+      // Platform admin detection (self-row read; empty for everyone else)
+      supabase.from("platform_admins").select("user_id").maybeSingle()
+        .then(({ data }) => setIsPlatformAdmin(!!data));
       const roleByOrg = Object.fromEntries(mems.map(m => [m.org_id, m.role]));
       const { data: orgRows } = await supabase
         .from("organizations")
@@ -2685,6 +2690,7 @@ export default function App() {
     { id: "communities", label: "Communities", icon: Map, preview: true, feature: "communities" },
     { id: "agents", label: "Agents", icon: Award, ownerOnly: true },
     { id: "team", label: "Team", icon: UserPlus, ownerOnly: true },
+    { id: "siteadmin", label: "Site Admin", icon: Wrench, platformOnly: true },
     { id: "assistant", label: "AI Assistant", icon: Bot, pro: true },
   ];
 
@@ -6860,6 +6866,136 @@ export default function App() {
     );
   };
 
+  // ----- Site Admin (Triskope platform admins only) -----
+  // Manage brand colors, SEO, and domains across ALL subscriber sites.
+  const SiteAdminView = () => {
+    const [sites, setSites] = useState(null);
+    const [selId, setSelId] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState("");
+    const A = useRef({});
+    const setA = (k) => (el) => { if (el) A.current[k] = el; };
+
+    const load = async () => {
+      const { data, error } = await supabase.functions.invoke("admin-list-sites", { body: {} });
+      if (error || data?.error) { setErr(data?.error || error.message); return; }
+      setSites(data.sites || []);
+    };
+    useEffect(() => { load(); }, []);
+
+    const sel = (sites || []).find(s => s.id === selId) || null;
+
+    const saveSite = async () => {
+      if (!sel) return;
+      setSaving(true); setErr("");
+      const body = {
+        org_id: sel.id,
+        site_config: {
+          colors: {
+            accent: A.current.accent?.value || "#1d6b63",
+            accent_deep: A.current.accent_deep?.value || "#0f4a44",
+            ink: A.current.ink?.value || "#10261f",
+            ink_soft: A.current.ink_soft?.value || "#3a4f47",
+            gold: A.current.gold?.value || "#b8893f",
+          },
+          seo_title: A.current.seo_title?.value || "",
+          seo_description: A.current.seo_description?.value || "",
+          og_image: A.current.og_image?.value || "",
+          city: A.current.city?.value || "",
+          region: A.current.region?.value || "",
+          areas_served: (A.current.areas_served?.value || "").split(",").map(s => s.trim()).filter(Boolean),
+        },
+        custom_domain: (A.current.custom_domain?.value || "").trim(),
+      };
+      const { data, error } = await supabase.functions.invoke("save-site-config", { body });
+      setSaving(false);
+      if (error || data?.error) { setErr(data?.error || error.message); return; }
+      setToast({ message: `${sel.name} updated`, kind: "success" });
+      load();
+    };
+
+    const inS = { width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" };
+    const lbl = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim, marginBottom: 6 };
+
+    return (
+      <div>
+        <div style={pageHeader(isMobile)}>
+          <div>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Site Admin</h1>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Brand, SEO, and domains for every subscriber site. Content stays with the subscriber.</p>
+          </div>
+        </div>
+        {err && <Card style={{ marginBottom: 16, borderColor: C.red }}><p style={{ color: C.red, fontSize: 14, margin: 0 }}>{err}</p></Card>}
+        {!sites ? <Card><p style={{ color: C.textMuted, margin: 0 }}>Loading sites…</p></Card> : (
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "280px 1fr", alignItems: "start" }}>
+            <Card>
+              {sites.map(s => (
+                <button key={s.id} onClick={() => setSelId(s.id)} style={{
+                  display: "block", width: "100%", textAlign: "left", padding: "12px 14px",
+                  background: selId === s.id ? C.bg : "transparent", border: "none",
+                  borderRadius: 8, cursor: "pointer", marginBottom: 2,
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{s.name}</div>
+                  <div style={{ fontSize: 12, color: s.has_site ? C.teal : C.textDim }}>
+                    {s.has_site ? (s.custom_domain || `${s.slug}.triskope.ai`) : "No site yet"}
+                  </div>
+                </button>
+              ))}
+            </Card>
+            {sel ? (
+              <div key={sel.id}>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0 }}>{sel.name}</h3>
+                    <a href={`${SITES_BASE}/?slug=${encodeURIComponent(sel.slug)}&fresh=1`} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.teal, fontWeight: 600, textDecoration: "none" }}>Open site →</a>
+                  </div>
+                  <label style={lbl}>Custom domain</label>
+                  <input ref={setA("custom_domain")} defaultValue={sel.custom_domain || ""} placeholder="clientdomain.com" style={{ ...inS, marginBottom: 10 }} />
+                  <p style={{ fontSize: 12.5, color: C.textMuted, margin: 0, lineHeight: 1.6 }}>
+                    After saving: add the domain to the triskope-sites Vercel project, then have the client set
+                    A @ → 76.76.21.21 and CNAME www → cname.vercel-dns.com.
+                  </p>
+                </Card>
+                <Card style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: "0 0 12px" }}>Brand colors</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: 12 }}>
+                    <div><label style={lbl}>Accent</label><input ref={setA("accent")} defaultValue={sel.colors.accent || "#1d6b63"} style={inS} /></div>
+                    <div><label style={lbl}>Accent deep</label><input ref={setA("accent_deep")} defaultValue={sel.colors.accent_deep || "#0f4a44"} style={inS} /></div>
+                    <div><label style={lbl}>Ink</label><input ref={setA("ink")} defaultValue={sel.colors.ink || "#10261f"} style={inS} /></div>
+                    <div><label style={lbl}>Ink soft</label><input ref={setA("ink_soft")} defaultValue={sel.colors.ink_soft || "#3a4f47"} style={inS} /></div>
+                    <div><label style={lbl}>Gold</label><input ref={setA("gold")} defaultValue={sel.colors.gold || "#b8893f"} style={inS} /></div>
+                  </div>
+                </Card>
+                <Card style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: "0 0 12px" }}>SEO</h3>
+                  <label style={lbl}>Page title</label>
+                  <input ref={setA("seo_title")} defaultValue={sel.seo_title} style={{ ...inS, marginBottom: 12 }} />
+                  <label style={lbl}>Meta description</label>
+                  <input ref={setA("seo_description")} defaultValue={sel.seo_description} style={{ ...inS, marginBottom: 12 }} />
+                  <label style={lbl}>Social share image URL</label>
+                  <input ref={setA("og_image")} defaultValue={sel.og_image} style={{ ...inS, marginBottom: 12 }} />
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
+                    <div><label style={lbl}>City</label><input ref={setA("city")} defaultValue={sel.city} style={inS} /></div>
+                    <div><label style={lbl}>State</label><input ref={setA("region")} defaultValue={sel.region} style={inS} /></div>
+                  </div>
+                  <label style={lbl}>Areas served (comma-separated)</label>
+                  <input ref={setA("areas_served")} defaultValue={Array.isArray(sel.areas_served) ? sel.areas_served.join(", ") : (sel.areas_served || "")} style={inS} />
+                </Card>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button onClick={saveSite} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>
+                    {saving ? "Saving…" : `Save ${sel.name}`}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Card><p style={{ color: C.textMuted, margin: 0 }}>Select a subscriber to manage their site.</p></Card>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const MyWebsiteView = () => {
     const cfg = org?.site_config || {};
     // Uncontrolled refs for all scalar text fields (avoids focus loss on the big form)
@@ -7013,8 +7149,8 @@ export default function App() {
         _saved_at: new Date().toISOString(),
       };
       const body = { org_id: org.id, site_config };
-      // Domain changes are owner-only; only send when the owner edited it.
-      if (org?.role === "owner") {
+      // Domain changes are platform-admin only; only send when edited.
+      if (isPlatformAdmin) {
         const dom = (R.current.custom_domain?.value || "").trim();
         if (dom !== (org.custom_domain || "")) body.custom_domain = dom;
       }
@@ -7158,6 +7294,8 @@ export default function App() {
           <button onClick={() => setSolds([...solds, { price: "", address: "", image: "" }])} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"10px 16px", borderRadius:6, border:`1px solid ${C.border}`, background:"transparent", color:C.text, fontSize:12, fontWeight:700, letterSpacing:"0.04em", cursor:"pointer", marginTop:4 }}><Plus size={13} /> Add sold property</button>
         </Group>
 
+        {isPlatformAdmin ? (
+        <>
         <Group title="Brand colors" sub="Hex values, e.g. #1d6b63. Leave defaults if unsure.">
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: 12 }}>
             <div><label style={lblStyle}>Accent (buttons, links)</label><input ref={setR("col_accent")} defaultValue={colors.accent || "#1d6b63"} style={inStyle} /></div>
@@ -7177,10 +7315,10 @@ export default function App() {
           <Text k="areas_served" label="Areas served (comma-separated)" ph="Your areas, comma-separated" />
         </Group>
 
-        <Group title="Custom domain" sub={org?.role === "owner" ? "Point your own domain at your site. After saving, Triskope activates it (usually within a day)." : "Only the workspace owner can change the domain."}>
+        <Group title="Custom domain" sub="The client's own domain. After saving, add it to the triskope-sites Vercel project and have the client point DNS.">
           <div style={{ marginBottom: 14 }}>
             <label style={lblStyle}>Your domain</label>
-            <input ref={setR("custom_domain")} defaultValue={org?.custom_domain || ""} placeholder="yourname.com" disabled={org?.role !== "owner"} style={{ ...inStyle, opacity: org?.role === "owner" ? 1 : 0.55 }} />
+            <input ref={setR("custom_domain")} defaultValue={org?.custom_domain || ""} placeholder="yourname.com" style={inStyle} />
           </div>
           <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.7 }}>
             At your domain registrar, add these DNS records:
@@ -7191,6 +7329,17 @@ export default function App() {
             Your site stays available at {org?.slug ? `${org.slug}.triskope.ai` : "your triskope.ai address"} either way.
           </div>
         </Group>
+        </>
+        ) : (
+        <Card style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: "0 0 4px" }}>Brand, SEO &amp; domain</h3>
+          <p style={{ fontSize: 13, color: C.textMuted, margin: 0, lineHeight: 1.7 }}>
+            Your brand colors, search-engine settings, and domain are managed by Triskope
+            so your site stays polished and ranks well. Want something changed? Reach out
+            and we'll handle it.
+          </p>
+        </Card>
+        )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
           <button onClick={save} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>
@@ -7650,6 +7799,7 @@ async function triskopeSubmit(e){
       case "idx": return <IdxFeedsView />;
       case "connect": return <ConnectSiteView />;
       case "website": return <MyWebsiteView />;
+      case "siteadmin": return isPlatformAdmin ? <SiteAdminView /> : <Dashboard />;
       case "emailbrand": return <EmailBrandingView />;
       case "addagent": return <AddAgentView />;
       case "reports": return <ReportsView />;
@@ -7933,6 +8083,7 @@ async function triskopeSubmit(e){
         <nav style={{ flex: 1 }}>
           {nav.filter(item => {
             const isOwner = org?.role === "owner";
+            if (item.platformOnly && !isPlatformAdmin) return false;
             if (item.ownerOnly && !isOwner) return false;
             if (item.feature && !isOwner && !(org?.features?.[item.feature])) return false;
             return true;
