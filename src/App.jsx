@@ -6903,7 +6903,15 @@ export default function App() {
 
     const act = async (action, extra = {}) => {
       const { data, error } = await supabase.functions.invoke("admin-manage-org", { body: { action, org_id: selId, ...extra } });
-      if (error || data?.error) { setToast({ message: data?.error || error.message, kind: "error" }); return null; }
+      if (error || data?.error) {
+        let msg = data?.error || error?.message || "Request failed";
+        // Surface the fn's real error body instead of the generic non-2xx text.
+        if (error?.context && typeof error.context.json === "function") {
+          try { const j = await error.context.json(); if (j?.error) msg = j.error; } catch { /* ignore */ }
+        }
+        setToast({ message: msg, kind: "error" });
+        return null;
+      }
       loadOverview(selId); load();
       return data;
     };
