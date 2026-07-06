@@ -1712,7 +1712,7 @@ export default function App() {
       const roleByOrg = Object.fromEntries(mems.map(m => [m.org_id, m.role]));
       const { data: orgRows } = await supabase
         .from("organizations")
-        .select("id, name, slug, site_config, features, custom_domain")
+        .select("id, name, slug, site_config, features, custom_domain, plan, billing_status")
         .in("id", mems.map(m => m.org_id));
       if (!orgRows || orgRows.length === 0) return;
       const list = orgRows
@@ -6887,6 +6887,22 @@ export default function App() {
 
     const sel = (sites || []).find(s => s.id === selId) || null;
 
+    // Account overview (members, health, features) for the selected org
+    const [ov, setOv] = useState(null);
+    const loadOverview = async (orgId) => {
+      setOv(null);
+      const { data } = await supabase.functions.invoke("admin-manage-org", { body: { action: "overview", org_id: orgId } });
+      if (data && !data.error) setOv(data);
+    };
+    useEffect(() => { if (selId) loadOverview(selId); }, [selId]);
+
+    const act = async (action, extra = {}) => {
+      const { data, error } = await supabase.functions.invoke("admin-manage-org", { body: { action, org_id: selId, ...extra } });
+      if (error || data?.error) { setToast({ message: data?.error || error.message, kind: "error" }); return null; }
+      loadOverview(selId); load();
+      return data;
+    };
+
     const saveSite = async () => {
       if (!sel) return;
       setSaving(true); setErr("");
@@ -6941,11 +6957,95 @@ export default function App() {
                   <div style={{ fontSize: 12, color: s.has_site ? C.teal : C.textDim }}>
                     {s.has_site ? (s.custom_domain || `${s.slug}.triskope.ai`) : "No site yet"}
                   </div>
+                  <div style={{ fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
+                    <span style={{ color: C.textDim }}>{s.plan}</span>
+                    <span style={{ marginLeft: 8, fontWeight: 700, color: s.billing_status === "active" ? C.teal : s.billing_status === "past_due" ? C.gold : C.red }}>
+                      {(s.billing_status || "active").replace("_", " ")}
+                    </span>
+                  </div>
                 </button>
               ))}
             </Card>
             {sel ? (
               <div key={sel.id}>
+                <Card style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: "0 0 12px" }}>Account</h3>
+                  <label style={lbl}>Plan</label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                    {["starter", "growth", "elite"].map(p => (
+                      <button key={p} onClick={() => act("set_plan", { plan: p })} style={{
+                        padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        textTransform: "capitalize", cursor: "pointer",
+                        border: `1px solid ${sel.plan === p ? C.teal : C.border}`,
+                        background: sel.plan === p ? C.teal + "18" : "transparent",
+                        color: sel.plan === p ? C.teal : C.text,
+                      }}>{p}</button>
+                    ))}
+                  </div>
+                  <label style={lbl}>Billing status</label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                    {[["active", C.teal], ["past_due", C.gold], ["suspended", C.red]].map(([st, col]) => (
+                      <button key={st} onClick={() => {
+                        if (st === "suspended" && !window.confirm(`Suspend ${sel.name}? Their CRM locks, their site goes offline, and lead capture stops. Data is kept.`)) return;
+                        act("set_billing", { billing_status: st });
+                      }} style={{
+                        padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        border: `1px solid ${sel.billing_status === st ? col : C.border}`,
+                        background: sel.billing_status === st ? col + "18" : "transparent",
+                        color: sel.billing_status === st ? col : C.text,
+                      }}>{st.replace("_", " ")}</button>
+                    ))}
+                  </div>
+                  <label style={lbl}>Features</label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                    {["communities", "market_reports", "ai_assistant", "auto_assign"].map(f => {
+                      const on = !!ov?.org?.features?.[f];
+                      return (
+                        <button key={f} onClick={() => act("set_feature", { feature: f, enabled: !on })} style={{
+                          padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                          border: `1px solid ${on ? C.teal : C.border}`,
+                          background: on ? C.teal + "18" : "transparent",
+                          color: on ? C.teal : C.textDim,
+                        }}>{f.replace("_", " ")} {on ? "on" : "off"}</button>
+                      );
+                    })}
+                  </div>
+                  {ov ? (
+                    <>
+                      <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 14 }}>
+                        {ov.health.leads} leads · {ov.health.tasks} tasks · last lead {ov.health.last_lead_at ? new Date(ov.health.last_lead_at).toLocaleDateString() : "never"}
+                      </div>
+                      <label style={lbl}>Members</label>
+                      {ov.members.map(m => (
+                        <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+                          <div style={{ flex: 1, minWidth: 180 }}>
+                            <div style={{ fontSize: 13.5, color: C.text }}>{m.email}</div>
+                            <div style={{ fontSize: 11.5, color: C.textDim }}>{m.role} · last sign-in {m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleDateString() : "never"}</div>
+                          </div>
+                          <button onClick={async () => {
+                            const r = await act("reset_password", { email: m.email });
+                            if (r?.ok) setToast({ message: `Reset email sent to ${m.email}`, kind: "success" });
+                          }} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Send reset</button>
+                          <button onClick={async () => {
+                            const r = await act("login_link", { email: m.email });
+                            if (r?.link) {
+                              try { await navigator.clipboard.writeText(r.link); setToast({ message: "Support login link copied — open it in a PRIVATE window. It signs you in as them.", kind: "info" }); }
+                              catch { window.prompt("Support login link (open in a private window):", r.link); }
+                            }
+                          }} style={{ fontSize: 12, fontWeight: 600, color: C.gold, background: C.gold + "14", border: `1px solid ${C.gold}44`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Login link</button>
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 16 }}>
+                        <label style={lbl}>Internal notes (never shown to subscriber)</label>
+                        <textarea ref={setA("notes")} defaultValue={ov.org.admin_notes || ""} rows={3} style={{ ...inS, resize: "vertical" }} />
+                        <button onClick={async () => {
+                          const r = await act("set_notes", { notes: A.current.notes?.value || "" });
+                          if (r?.ok) setToast({ message: "Notes saved", kind: "success" });
+                        }} style={{ marginTop: 8, fontSize: 12.5, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 12px", cursor: "pointer" }}>Save notes</button>
+                      </div>
+                    </>
+                  ) : <div style={{ fontSize: 13, color: C.textDim }}>Loading account details…</div>}
+                </Card>
                 <Card style={{ marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
                     <h3 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0 }}>{sel.name}</h3>
@@ -7791,6 +7891,23 @@ async function triskopeSubmit(e){
   };
 
   const renderView = () => {
+    // Suspended workspace: hard lock for subscribers (platform admins pass
+    // through so they can still service the account). Server-side, the org's
+    // public site and lead capture are already dark.
+    if (org?.billing_status === "suspended" && !isPlatformAdmin) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+          <Card style={{ maxWidth: 460, textAlign: "center", padding: 36 }}>
+            <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500, color: C.text, margin: "0 0 10px" }}>Account paused</h2>
+            <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>
+              This workspace is temporarily paused. Your leads and website content are
+              safe and nothing has been deleted. Please contact Triskope at
+              team@triskope.ai to restore access.
+            </p>
+          </Card>
+        </div>
+      );
+    }
     switch (view) {
       case "inbox": return <InboxView />;
       case "leads": return <LeadsView />;

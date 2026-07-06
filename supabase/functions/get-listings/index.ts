@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const slug = g("slug").toLowerCase();
   const domain = g("domain").toLowerCase();
 
-  let orgQ = supabase.from("organizations").select("id");
+  let orgQ = supabase.from("organizations").select("id, billing_status");
   if (slug && /^[a-z0-9-]{1,60}$/.test(slug)) orgQ = orgQ.eq("slug", slug);
   else if (domain && /^[a-z0-9.-]{4,253}$/.test(domain)) {
     const bare = domain.replace(/^www\./, "");
@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
 
   const { data: org } = await orgQ.maybeSingle();
   if (!org) return json({ error: "Site not found" }, 404);
+  if (org.billing_status === "suspended") return json({ error: "Site not found" }, 404);
 
   // Detail request
   const id = g("id");

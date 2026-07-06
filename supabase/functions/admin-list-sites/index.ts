@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   if (!adminRow) return json({ error: "Platform admins only" }, 403);
 
   const { data: orgs, error } = await admin.from("organizations")
-    .select("id, name, slug, custom_domain, site_config")
+    .select("id, name, slug, custom_domain, site_config, plan, billing_status")
     .order("name");
   if (error) return json({ error: error.message }, 500);
 
@@ -50,6 +50,8 @@ Deno.serve(async (req) => {
       name: o.name,
       slug: o.slug,
       custom_domain: o.custom_domain,
+      plan: o.plan,
+      billing_status: o.billing_status,
       has_site: !!o.site_config && Object.keys(o.site_config).length > 0,
       colors: cfg.colors ?? {},
       seo_title: cfg.seo_title ?? "",

@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   const domain = (url.searchParams.get("domain") ?? "").trim().toLowerCase();
 
   let query = supabase.from("organizations")
-    .select("id, name, slug, site_config, custom_domain");
+    .select("id, name, slug, site_config, custom_domain, billing_status");
   if (slug && /^[a-z0-9-]{1,60}$/.test(slug)) {
     query = query.eq("slug", slug);
   } else if (domain && /^[a-z0-9.-]{4,253}$/.test(domain)) {
@@ -54,6 +54,8 @@ Deno.serve(async (req) => {
   const { data: org } = await query.maybeSingle();
 
   if (!org) return json({ error: "Site not found" }, 404);
+  // Suspended accounts: site goes dark (indistinguishable from unpublished).
+  if (org.billing_status === "suspended") return json({ error: "Site not published" }, 404);
   if (!org.site_config || Object.keys(org.site_config).length === 0) {
     // Org exists but has not authored a site yet.
     return json({ error: "Site not published" }, 404);

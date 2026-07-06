@@ -45,8 +45,10 @@ Deno.serve(async (req) => {
   }
 
   const { data: org } = await supabase
-    .from("organizations").select("id, features").eq("slug", orgSlug).single();
+    .from("organizations").select("id, features, billing_status").eq("slug", orgSlug).single();
   if (!org) return json({ error: "Unknown organization" }, 404);
+  // Suspended accounts don't collect leads.
+  if (org.billing_status === "suspended") return json({ error: "Unknown organization" }, 404);
 
   let communityId: string | null = null;
   if (body.community_slug) {
