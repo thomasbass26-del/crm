@@ -6896,10 +6896,33 @@ export default function App() {
     // ----- Image upload (Supabase Storage bucket: site-assets) -----
     // Status is shown by mutating the button via refs, NOT React state:
     // any state change here remounts the form and wipes unsaved inputs.
+    // Downscale big photos in the browser before upload (max 2400px, JPEG 85%).
+    // Phone/DSLR photos are routinely 6-12MB; sites shouldn't serve that anyway.
+    // GIFs pass through untouched to preserve animation.
+    const compressImage = async (file) => {
+      if (file.type === "image/gif") return file;
+      try {
+        const bmp = await createImageBitmap(file);
+        const MAX = 2400;
+        const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+        if (scale === 1 && file.size < 600 * 1024) return file; // already small
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+        if (!blob) return file;
+        return new File([blob], (file.name.replace(/\.[^.]+$/, "") || "image") + ".jpg", { type: "image/jpeg" });
+      } catch { return file; }
+    };
+
     const uploadSiteImage = async (file, onStatus) => {
       if (!file) return null;
-      if (file.size > 5 * 1024 * 1024) { onStatus?.("Max 5MB"); return null; }
       if (!/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
+      onStatus?.("Preparing…");
+      file = await compressImage(file);
+      if (file.size > 5 * 1024 * 1024) { onStatus?.("Max 5MB"); return null; }
+      onStatus?.("Uploading…");
       const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
       const path = `${org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error } = await supabase.storage.from("site-assets")
