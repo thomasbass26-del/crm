@@ -4834,9 +4834,11 @@ export default function App() {
               {rows === null ? "Loading…" : `${rows.length} agent workspace${rows.length === 1 ? "" : "s"}`}
             </p>
           </div>
-          <button onClick={() => setView("addagent")} style={btnPrimary()}>
-            <UserPlus size={14} /> Add agent
-          </button>
+          {isPlatformAdmin && (
+            <button onClick={() => setView("addagent")} style={btnPrimary()}>
+              <UserPlus size={14} /> Add agent
+            </button>
+          )}
         </div>
 
         {rows === null ? (
@@ -4845,8 +4847,8 @@ export default function App() {
           <Card>
             <div style={{ textAlign: "center", padding: "32px 16px" }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 6 }}>No agents yet</div>
-              <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 18 }}>Onboard your first agent to get started.</div>
-              <button onClick={() => setView("addagent")} style={btnPrimary()}><Plus size={14} /> Add agent</button>
+              <div style={{ fontSize: 14, color: C.textMuted, marginBottom: 18 }}>No agents yet.</div>
+              {isPlatformAdmin && <button onClick={() => setView("addagent")} style={btnPrimary()}><Plus size={14} /> Add agent</button>}
             </div>
           </Card>
         ) : (
@@ -7801,7 +7803,7 @@ async function triskopeSubmit(e){
       case "website": return <MyWebsiteView />;
       case "siteadmin": return isPlatformAdmin ? <SiteAdminView /> : <Dashboard />;
       case "emailbrand": return <EmailBrandingView />;
-      case "addagent": return <AddAgentView />;
+      case "addagent": return isPlatformAdmin ? <AddAgentView /> : <Dashboard />;
       case "reports": return <ReportsView />;
       case "communities": return <CommunitiesView />;
       case "preview": return <SitePreviewView />;

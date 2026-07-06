@@ -91,10 +91,10 @@ Deno.serve(async (req) => {
   const token = (req.headers.get("authorization") || "").replace("Bearer ", "");
   const uid = callerId(token);
   if (!uid) return json({ error: "Not signed in" }, 401);
-  const { data: ownerRows } = await admin.from("org_members")
-    .select("org_id").eq("user_id", uid).eq("role", "owner");
-  if (!ownerRows || ownerRows.length === 0) {
-    return json({ error: "Only a platform owner can sync IDX." }, 403);
+  const { data: adminRow } = await admin.from("platform_admins")
+    .select("user_id").eq("user_id", uid).maybeSingle();
+  if (!adminRow) {
+    return json({ error: "Only Triskope staff can sync IDX." }, 403);
   }
 
   let body;

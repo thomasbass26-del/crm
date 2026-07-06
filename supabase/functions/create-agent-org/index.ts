@@ -50,12 +50,12 @@ Deno.serve(async (req) => {
 
   const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
-  // Authorize: caller must be an OWNER of at least one existing org (the platform
-  // operator). This gates org-creation to you, not to every agent.
-  const { data: ownerRows } = await admin.from("org_members")
-    .select("org_id, role").eq("user_id", callerId).eq("role", "owner");
-  if (!ownerRows || ownerRows.length === 0) {
-    return json({ error: "Only a platform owner can onboard agents." }, 403);
+  // Authorize: Triskope platform admins only. The old check ("owner of at
+  // least one org") passed for every subscriber.
+  const { data: adminRow } = await admin.from("platform_admins")
+    .select("user_id").eq("user_id", callerId).maybeSingle();
+  if (!adminRow) {
+    return json({ error: "Only Triskope staff can onboard agents." }, 403);
   }
 
   let body;
