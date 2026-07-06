@@ -2686,13 +2686,18 @@ export default function App() {
     { id: "listings", label: "Listings", icon: Building2 },
     { id: "sitetools", label: "CRM Tools", icon: Wrench, ownerOnly: true },
     { id: "website", label: "My Website", icon: Globe },
-    { id: "reports", label: "Market Reports", icon: FileText },
-    { id: "communities", label: "Communities", icon: Map, preview: true, feature: "communities" },
+    { id: "reports", label: "Market Reports", icon: FileText, feature: "market_reports" },
+    { id: "communities", label: "Communities", icon: Map, feature: "communities" },
     { id: "agents", label: "Agents", icon: Award, ownerOnly: true },
     { id: "team", label: "Team", icon: UserPlus, ownerOnly: true },
     { id: "siteadmin", label: "Site Admin", icon: Wrench, platformOnly: true },
-    { id: "assistant", label: "AI Assistant", icon: Bot, pro: true },
+    { id: "assistant", label: "AI Assistant", icon: Bot, feature: "ai_assistant" },
   ];
+
+  // Paid-feature gating: locked features stay VISIBLE but show an upgrade
+  // screen. Platform admins are never locked.
+  const FEATURE_PLANS = { communities: "Growth", market_reports: "Growth", ai_assistant: "Elite" };
+  const featureLocked = (f) => !!f && !isPlatformAdmin && !(org?.features?.[f]);
 
   const Card = ({ children, style = {}, hover = false, onClick }) => (
     <div
@@ -7890,9 +7895,30 @@ async function triskopeSubmit(e){
     );
   };
 
+  // Upgrade screen shown in place of a locked paid feature.
+  const UpgradeGate = ({ title, feature, blurb }) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+      <Card style={{ maxWidth: 480, textAlign: "center", padding: 36 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 12, background: C.gold + "1a", color: C.gold, marginBottom: 16 }}>
+          <Lock size={22} />
+        </div>
+        <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500, color: C.text, margin: "0 0 8px" }}>{title}</h2>
+        <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: "0 0 8px" }}>{blurb}</p>
+        <p style={{ fontSize: 14.5, color: C.text, fontWeight: 600, margin: "0 0 20px" }}>
+          Included in the {FEATURE_PLANS[feature] || "Growth"} plan.
+        </p>
+        <a href={`mailto:team@triskope.ai?subject=Upgrade my Triskope plan (${org?.name || ""})`} style={{ ...btnPrimary(), textDecoration: "none", display: "inline-flex" }}>
+          Upgrade my plan
+        </a>
+        <p style={{ fontSize: 12.5, color: C.textDim, marginTop: 14 }}>
+          Or reply to your Triskope contact and we'll switch it on for you.
+        </p>
+      </Card>
+    </div>
+  );
+
   const renderView = () => {
-    // Suspended workspace: hard lock for subscribers (platform admins pass
-    // through so they can still service the account). Server-side, the org's
+    // Suspended workspace: hard lock for subscribers (platform admins pass    // through so they can still service the account). Server-side, the org's
     // public site and lead capture are already dark.
     if (org?.billing_status === "suspended" && !isPlatformAdmin) {
       return (
@@ -7921,13 +7947,21 @@ async function triskopeSubmit(e){
       case "siteadmin": return isPlatformAdmin ? <SiteAdminView /> : <Dashboard />;
       case "emailbrand": return <EmailBrandingView />;
       case "addagent": return isPlatformAdmin ? <AddAgentView /> : <Dashboard />;
-      case "reports": return <ReportsView />;
-      case "communities": return <CommunitiesView />;
+      case "reports": return featureLocked("market_reports")
+        ? <UpgradeGate title="Market Reports" feature="market_reports" blurb="Branded community market reports your leads actually open — a proven listing-appointment driver." />
+        : <ReportsView />;
+      case "communities": return featureLocked("communities")
+        ? <UpgradeGate title="Community Pages" feature="communities" blurb="Dedicated neighborhood pages with buyer guides that capture and route local leads to you." />
+        : <CommunitiesView />;
       case "preview": return <SitePreviewView />;
       case "agents": return <AgentsView />;
       case "team": return <TeamView />;
-      case "assistant": return <AssistantView />;
-      case "ai": return <AIView />;
+      case "assistant": return featureLocked("ai_assistant")
+        ? <UpgradeGate title="AI Assistant" feature="ai_assistant" blurb="Lead scoring, drafted follow-ups, and pipeline insights powered by AI — like a full-time assistant on your team." />
+        : <AssistantView />;
+      case "ai": return featureLocked("ai_assistant")
+        ? <UpgradeGate title="AI Tools" feature="ai_assistant" blurb="AI-powered lead scoring and content tools." />
+        : <AIView />;
       case "billing": return <PlansView />;
       default: return <Dashboard />;
     }
@@ -8204,11 +8238,11 @@ async function triskopeSubmit(e){
             const isOwner = org?.role === "owner";
             if (item.platformOnly && !isPlatformAdmin) return false;
             if (item.ownerOnly && !isOwner) return false;
-            if (item.feature && !isOwner && !(org?.features?.[item.feature])) return false;
             return true;
           }).map(item => {
             const Icon = item.icon;
             const active = view === item.id;
+            const locked = featureLocked(item.feature);
             return (
               <button key={item.id}
                 onClick={() => { setView(item.id); setSelectedLead(null); setSelectedCommunity(null); setSelectedAgent(null); if (isMobile) setSidebarOpen(false); }}
@@ -8230,6 +8264,11 @@ async function triskopeSubmit(e){
               >
                 <Icon size={isMobile ? 18 : 16} />
                 <span style={{ flex: 1 }}>{item.label}</span>
+                {locked && (
+                  <span title="Upgrade to unlock" style={{ display: "flex", alignItems: "center", color: C.goldSoft, opacity: 0.85 }}>
+                    <Lock size={12} />
+                  </span>
+                )}
                 {item.id === "inbox" && unreadNotifs > 0 && (
                   <span style={{
                     padding: "1px 7px", borderRadius: 9999, minWidth: 18,
