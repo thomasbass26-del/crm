@@ -69,14 +69,22 @@ Deno.serve(async (req) => {
     .eq("org_id", org.id)
     .eq("published", true);
 
-  const pubCommunities = (communities ?? []).map((c: Record<string, unknown>) => ({
-    id: c.id,
-    slug: c.slug,
-    name: c.name ?? c.title ?? c.slug,
-    tagline: c.tagline ?? null,
-    hero_image: c.hero_image ?? c.image ?? null,
-    description: c.description ?? null,
-  })).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const pubCommunities = (communities ?? []).map((c: Record<string, unknown>) => {
+    const pc = (c.page_config ?? {}) as Record<string, unknown>;
+    return {
+      id: c.id,
+      slug: c.slug,
+      name: c.name ?? c.slug,
+      hero_copy: c.hero_copy ?? null,
+      tagline: pc.tagline ?? null,
+      hero_image: pc.hero_image ?? null,
+      description: pc.description ?? null,
+      highlights: Array.isArray(pc.highlights) ? pc.highlights : [],
+      type: pc.type ?? null,
+      area: pc.area ?? null,
+      listings_city: pc.listings_city ?? null,
+    };
+  }).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
   return json({
     name: org.name,

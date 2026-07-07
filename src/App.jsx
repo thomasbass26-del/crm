@@ -4453,26 +4453,258 @@ export default function App() {
     );
   };
 
+  // ===== REAL COMMUNITIES (communities table) =====
+  const COMMUNITY_TYPES = ["Golf", "Luxury", "Family", "Beach", "Urban", "Waterway"];
+  const commTypeColor = (t) =>
+    t === "Golf" ? C.teal : t === "Luxury" ? C.purple : t === "Beach" ? C.blue :
+    t === "Urban" ? C.amber : t === "Waterway" ? C.blue : C.green;
+  const communityPublicUrl = (c) =>
+    org?.custom_domain
+      ? `https://${org.custom_domain}/communities/${c.slug}`
+      : `${SITES_BASE}/communities/${c.slug}?slug=${encodeURIComponent(org?.slug || "")}&fresh=1`;
+
+  const CommunityHubCard = ({ c, leads }) => {
+    const pc = c.page_config || {};
+    const color = commTypeColor(pc.type);
+    return (
+      <div onClick={() => setSelectedCommunity(c)} style={{
+        background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14,
+        overflow: "hidden", cursor: "pointer",
+      }}>
+        <div style={{
+          height: 120,
+          background: pc.hero_image
+            ? `linear-gradient(180deg, rgba(10,10,20,0.1), rgba(10,10,20,0.55)), url(${pc.hero_image}) center/cover`
+            : `linear-gradient(135deg, ${color}33, ${C.bg})`,
+          display: "flex", alignItems: "flex-end", padding: 14,
+        }}>
+          {pc.type && <span style={{ padding: "3px 10px", borderRadius: 9999, background: color, color: "#0a0a14", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>{pc.type}</span>}
+        </div>
+        <div style={{ padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{c.name}</h3>
+            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c.published ? C.teal : C.textDim }}>
+              {c.published ? "Live" : "Draft"}
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: C.textMuted, margin: "4px 0 10px" }}>
+            {pc.area || "—"} · /communities/{c.slug}
+          </div>
+          <div style={{ fontSize: 12.5, color: C.text }}>
+            <strong style={{ color: C.teal }}>{leads || 0}</strong> lead{(leads || 0) === 1 ? "" : "s"} from this page
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const CommunityHub = ({ community, onBack, onChanged }) => {
+    const c = community;
+    const pc = c.page_config || {};
+    const R = useRef({});
+    const setR = (k) => (el) => { if (el) R.current[k] = el; };
+    const [saving, setSaving] = useState(false);
+    const [recent, setRecent] = useState(null);
+    useEffect(() => {
+      supabase.from("leads").select("id, name, created_at, source").eq("community_id", c.id)
+        .order("created_at", { ascending: false }).limit(6)
+        .then(({ data }) => setRecent(data || []));
+    }, [c.id]);
+
+    const uploadHero = async (file, onStatus) => {
+      if (!file || !/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
+      const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
+      const path = `${org.id}/community-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("site-assets").upload(path, file, { contentType: file.type });
+      if (error) { onStatus?.("Upload failed"); return null; }
+      return supabase.storage.from("site-assets").getPublicUrl(path).data?.publicUrl || null;
+    };
+
+    const save = async (extra = {}) => {
+      setSaving(true);
+      const page_config = {
+        ...pc,
+        type: R.current.type?.value || pc.type || "",
+        area: (R.current.area?.value || "").trim(),
+        tagline: (R.current.tagline?.value || "").trim(),
+        description: (R.current.description?.value || "").trim(),
+        highlights: (R.current.highlights?.value || "").split("\n").map(s => s.trim()).filter(Boolean),
+        hero_image: (R.current.hero_image?.value || "").trim(),
+        listings_city: (R.current.listings_city?.value || "").trim(),
+      };
+      const update = {
+        name: (R.current.name?.value || c.name).trim(),
+        hero_copy: (R.current.description?.value || "").trim(),
+        page_config, updated_at: new Date().toISOString(), ...extra,
+      };
+      const { data, error } = await supabase.from("communities").update(update).eq("id", c.id).select("*").single();
+      setSaving(false);
+      if (error) { setToast({ message: error.message, kind: "error" }); return; }
+      setSelectedCommunity(data); onChanged();
+      setToast({ message: `${data.name} saved${"published" in extra ? (extra.published ? " and published" : " and unpublished") : ""}.`, kind: "success" });
+    };
+
+    const del = async () => {
+      if (!window.confirm(`Delete ${c.name}? If leads are tagged to it, unpublish instead.`)) return;
+      const { error } = await supabase.from("communities").delete().eq("id", c.id);
+      if (error) { setToast({ message: "Can't delete — leads reference this community. Unpublish it instead.", kind: "error" }); return; }
+      setSelectedCommunity(null); onChanged();
+    };
+
+    const inS = { width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" };
+    const lbl = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim, marginBottom: 6, marginTop: 14 };
+
+    return (
+      <div>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.teal, fontSize: 13, cursor: "pointer", padding: "4px 0", minHeight: 44, display: "flex", alignItems: "center", gap: 4 }}>
+          <ChevronLeft size={16} /> Back to all communities
+        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, margin: "8px 0 16px" }}>
+          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 500, color: C.text, margin: 0 }}>{c.name}</h1>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {c.published && (
+              <a href={communityPublicUrl(c)} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
+                <Globe size={14} /> Open page
+              </a>
+            )}
+            <button onClick={() => save({ published: !c.published })} disabled={saving} style={{
+              padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+              border: `1px solid ${c.published ? C.border : C.teal}`,
+              background: c.published ? C.bg : C.teal + "18",
+              color: c.published ? C.text : C.teal,
+            }}>{c.published ? "Unpublish" : "Publish page"}</button>
+            <button onClick={() => save()} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr", alignItems: "start" }}>
+          <Card>
+            <label style={{ ...lbl, marginTop: 0 }}>Community name</label>
+            <input ref={setR("name")} defaultValue={c.name} style={inS} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={lbl}>Type</label>
+                <select ref={setR("type")} defaultValue={pc.type || ""} style={inS}>
+                  <option value="">—</option>
+                  {COMMUNITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Area</label>
+                <input ref={setR("area")} defaultValue={pc.area || ""} placeholder="Murrells Inlet" style={inS} />
+              </div>
+            </div>
+            <label style={lbl}>Tagline (one line, shown on the hero)</label>
+            <input ref={setR("tagline")} defaultValue={pc.tagline || ""} style={inS} />
+            <label style={lbl}>Description</label>
+            <textarea ref={setR("description")} defaultValue={pc.description || c.hero_copy || ""} rows={5} style={{ ...inS, resize: "vertical" }} />
+            <label style={lbl}>Highlights (one per line)</label>
+            <textarea ref={setR("highlights")} defaultValue={(pc.highlights || []).join("\n")} rows={4} style={{ ...inS, resize: "vertical" }} />
+            <label style={lbl}>Hero image</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input ref={setR("hero_image")} defaultValue={pc.hero_image || ""} placeholder="https://… or upload" style={{ ...inS, flex: 1 }} />
+              <CommUploadBtn upload={uploadHero} onUrl={(url) => { if (R.current.hero_image) R.current.hero_image.value = url; }} />
+            </div>
+            <label style={lbl}>Listings city match (fills the "Homes near" section from IDX)</label>
+            <input ref={setR("listings_city")} defaultValue={pc.listings_city || ""} placeholder="Murrells Inlet" style={inS} />
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+              <button onClick={del} style={{ background: "none", border: "none", color: C.red, fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>Delete community</button>
+            </div>
+          </Card>
+          <Card>
+            <h3 style={{ ...cardTitle(), marginBottom: 4 }}>Leads from this page</h3>
+            <p style={{ fontSize: 12.5, color: C.textMuted, margin: "0 0 12px" }}>Every form submission on the public page lands here tagged to {c.name}.</p>
+            {recent === null ? <p style={{ fontSize: 13, color: C.textDim }}>Loading…</p>
+              : recent.length === 0 ? <p style={{ fontSize: 13, color: C.textDim }}>No leads yet{c.published ? "" : " — publish the page to start capturing"}.</p>
+              : recent.map(l => (
+                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+                  <span style={{ color: C.text, fontWeight: 600 }}>{l.name}</span>
+                  <span style={{ color: C.textDim }}>{new Date(l.created_at).toLocaleDateString()}</span>
+                </div>
+              ))}
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // Upload button with DOM-ref status (no state = no form wipe on remount).
+  const CommUploadBtn = ({ upload, onUrl }) => {
+    const btnRef = useRef(null);
+    const fileRef = useRef(null);
+    const handle = async (e) => {
+      const file = e.target.files?.[0]; e.target.value = "";
+      if (!file) return;
+      const btn = btnRef.current;
+      if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+      const url = await upload(file, (m) => { if (btn) btn.textContent = m; });
+      if (url) { onUrl(url); if (btn) btn.textContent = "Uploaded ✓"; }
+      setTimeout(() => { if (btn) { btn.textContent = "Upload"; btn.disabled = false; } }, url ? 1500 : 2500);
+    };
+    return (<>
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handle} />
+      <button ref={btnRef} type="button" onClick={() => fileRef.current?.click()} style={{ padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Upload</button>
+    </>);
+  };
+
   const CommunitiesView = () => {
+    const [rows, setRows] = useState(null);
+    const [leadCounts, setLeadCounts] = useState({});
+    const load = async () => {
+      const { data } = await supabase.from("communities").select("*").eq("org_id", org.id).order("name");
+      setRows(data || []);
+      const { data: lc } = await supabase.from("leads").select("community_id").eq("org_id", org.id).not("community_id", "is", null);
+      const m = {};
+      (lc || []).forEach(r => { m[r.community_id] = (m[r.community_id] || 0) + 1; });
+      setLeadCounts(m);
+    };
+    useEffect(() => { if (org?.id) load(); }, [org?.id]);
+
+    const createCommunity = async () => {
+      const name = window.prompt("Community name (e.g. Prince Creek):");
+      if (!name?.trim()) return;
+      const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "community";
+      let slug = base, created = null;
+      for (let i = 0; i < 3; i++) {
+        const { data, error } = await supabase.from("communities")
+          .insert({ org_id: org.id, name: name.trim(), slug, published: false, page_config: {} })
+          .select("*").single();
+        if (!error) { created = data; break; }
+        if (!String(error.message).toLowerCase().includes("duplicate")) { setToast({ message: error.message, kind: "error" }); return; }
+        slug = `${base}-${i + 2}`;
+      }
+      if (created) { setSelectedCommunity(created); load(); }
+    };
+
     if (selectedCommunity) {
-      return <CommunityDetail community={selectedCommunity} />;
+      return <CommunityHub community={selectedCommunity} onBack={() => setSelectedCommunity(null)} onChanged={load} />;
     }
     return (
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
             <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
-            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Each community generates its own landing page with live MLS data.</p>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Each community publishes a landing page on your website that captures leads tagged to it.</p>
           </div>
-          <button onClick={() => setToast({ message: "New community wizard — coming in Phase 2", kind: "info" })} style={btnPrimary()}><Plus size={14} /> New Community</button>
+          <button onClick={createCommunity} style={btnPrimary()}><Plus size={14} /> New Community</button>
         </div>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))",
-          gap: 18,
-        }}>
-          {COMMUNITIES.map(c => <CommunityCard key={c.id} c={c} />)}
-        </div>
+        {rows === null ? (
+          <Card><p style={{ color: C.textMuted, margin: 0 }}>Loading…</p></Card>
+        ) : rows.length === 0 ? (
+          <Card style={{ textAlign: "center", padding: 40 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 600, color: C.text, margin: "0 0 6px" }}>No community pages yet</h3>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "0 0 18px" }}>
+              Create pages for the neighborhoods you farm — each one becomes a lead-capturing page on your website.
+            </p>
+            <button onClick={createCommunity} style={btnPrimary()}><Plus size={14} /> Create your first community</button>
+          </Card>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
+            {rows.map(c => <CommunityHubCard key={c.id} c={c} leads={leadCounts[c.id]} />)}
+          </div>
+        )}
       </div>
     );
   };
@@ -4810,7 +5042,7 @@ export default function App() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {agentCommunities.map(c => (
                   <div key={c.id}
-                       onClick={() => { setSelectedAgent(null); setSelectedCommunity(c); setView("communities"); }}
+                       onClick={() => { setSelectedAgent(null); setSelectedCommunity(null); setView("communities"); }}
                        style={{
                          display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
                          background: C.bgInset, border: `1px solid ${C.border}`, borderRadius: 8,
