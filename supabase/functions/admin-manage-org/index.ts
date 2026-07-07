@@ -136,17 +136,17 @@ Deno.serve(async (req) => {
   }
 
   // Support actions below verify the email belongs to a member of THIS org
-  // so an admin typo can't email an unrelated account.
+  // so an admin typo can't affect an unrelated account.
   const email = String(body.email ?? "").trim().toLowerCase();
-  if (action === "reset_password" || action === "login_link") {
+  let targetUserId: string | null = null;
+  if (action === "reset_password" || action === "login_link" || action === "temp_password") {
     if (!email) return json({ error: "email required" }, 400);
     const { data: mems } = await admin.from("org_members").select("user_id").eq("org_id", orgId);
-    let belongs = false;
     for (const m of mems ?? []) {
       const { data: u } = await admin.auth.admin.getUserById(m.user_id);
-      if ((u?.user?.email ?? "").toLowerCase() === email) { belongs = true; break; }
+      if ((u?.user?.email ?? "").toLowerCase() === email) { targetUserId = m.user_id; break; }
     }
-    if (!belongs) return json({ error: "That email is not a member of this workspace" }, 400);
+    if (!targetUserId) return json({ error: "That email is not a member of this workspace" }, 400);
   }
 
   if (action === "reset_password") {
@@ -155,6 +155,21 @@ Deno.serve(async (req) => {
     const { error } = await anon.auth.resetPasswordForEmail(email);
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true, sent_to: email });
+  }
+
+  if (action === "temp_password") {
+    // Phone-support flow: strong generated password, read to the subscriber
+    // verbally; must_change_password forces the set-password screen on their
+    // next sign-in. Returned ONCE, never stored in plain form.
+    const words = ["harbor","palmetto","coastal","marsh","dune","tide","cypress","pelican","inlet","breeze"];
+    const pick = () => words[Math.floor(Math.random() * words.length)];
+    const temp = `${pick()}-${pick()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const { error } = await admin.auth.admin.updateUserById(targetUserId!, {
+      password: temp,
+      user_metadata: { must_change_password: true },
+    });
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true, temp_password: temp });
   }
 
   if (action === "login_link") {

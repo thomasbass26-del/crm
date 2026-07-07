@@ -1525,6 +1525,8 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
+      // Temp-password support flow: force the set-password screen.
+      if (data.session?.user?.user_metadata?.must_change_password) setNeedsPassword(true);
       setAuthLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
@@ -1533,6 +1535,7 @@ export default function App() {
       // "this person arrived via a link and needs to set a password."
       if (event === "PASSWORD_RECOVERY") setNeedsPassword(true);
       if (event === "SIGNED_IN" && (isInviteHash || isInviteQuery)) setNeedsPassword(true);
+      if (sess?.user?.user_metadata?.must_change_password) setNeedsPassword(true);
     });
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
@@ -7096,6 +7099,12 @@ export default function App() {
                             if (r?.ok) setToast({ message: `Reset email sent to ${m.email}`, kind: "success" });
                           }} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Send reset</button>
                           <button onClick={async () => {
+                            const r = await act("temp_password", { email: m.email });
+                            if (r?.temp_password) {
+                              window.prompt(`Temp password for ${m.email} — read it to them over the phone. They'll be required to set a new one at sign-in:`, r.temp_password);
+                            }
+                          }} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Temp password</button>
+                          <button onClick={async () => {
                             const r = await act("login_link", { email: m.email });
                             if (r?.link) {
                               try { await navigator.clipboard.writeText(r.link); setToast({ message: "Support login link copied — open it in a PRIVATE window. It signs you in as them.", kind: "info" }); }
@@ -8193,7 +8202,8 @@ async function triskopeSubmit(e){
       if (pw.length < 8) { setErr("Use at least 8 characters."); return; }
       if (pw !== pw2) { setErr("Passwords don't match."); return; }
       setBusy(true);
-      const { error } = await supabase.auth.updateUser({ password: pw });
+      // Setting the new password also clears the temp-password flag.
+      const { error } = await supabase.auth.updateUser({ password: pw, data: { must_change_password: false } });
       setBusy(false);
       if (error) { setErr(error.message.includes("session") ? "This invite link has expired. Please ask for a fresh invite." : error.message); return; }
       onDone();
