@@ -108,7 +108,25 @@ Deno.serve(async (req) => {
       consent_captured_at: (consentEmail || consentSms) ? new Date().toISOString() : null,
       consent_record: evidence,
     }).select("id").single();
-    if (error) return json({ error: "Could not save lead" }, 500);
+    if (error) {
+      // A lead-capture failure is a LOST LEAD — alert Triskope immediately.
+      // Fire-and-forget; never blocks or breaks the response path.
+      const key = Deno.env.get("RESEND_API_KEY");
+      if (key) {
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "The Market Edge <team@triskope.ai>",
+            to: ["team@triskope.ai"],
+            subject: `🚨 lead-capture FAILED for ${orgSlug}`,
+            text: `A public form submission failed to save.\n\nOrg: ${orgSlug}\nName: ${name}\nEmail: ${email || "-"}\nPhone: ${phone || "-"}\nError: ${error.message}\nTime: ${new Date().toISOString()}\n\nThe visitor saw an error. Follow up manually with the contact info above.`,
+          }),
+        }).catch(() => {});
+      }
+      console.error("lead insert failed:", error.message);
+      return json({ error: "Could not save lead" }, 500);
+    }
     leadId = lead.id;
 
     // Persist any free-text the visitor wrote (message, property address for

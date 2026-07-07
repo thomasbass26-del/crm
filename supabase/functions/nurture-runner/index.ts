@@ -122,6 +122,10 @@ Deno.serve(async (req) => {
     summary.sent++;
   }
 
+  // Heartbeat: successful run pings healthchecks.io — a missed ping alerts
+  // Triskope that the scheduler has silently stopped. No-op if unset.
+  const hb = Deno.env.get("HEARTBEAT_NURTURE_URL");
+  if (hb) { try { await fetch(hb); } catch { /* never fail the run */ } }
   return json({ ok: true, ...summary });
  } catch (e) {
   return json({ error: "Unexpected: " + (e?.message || String(e)) }, 500);

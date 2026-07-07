@@ -253,6 +253,11 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Heartbeat: successful run pings healthchecks.io — a missed ping alerts
+  // Triskope that the scheduler has silently stopped. No-op if unset.
+  const hb = Deno.env.get("HEARTBEAT_DRIP_URL");
+  if (hb) { try { await fetch(hb); } catch { /* never fail the run */ } }
+
   return new Response(JSON.stringify(summary), {
     headers: { "content-type": "application/json" },
   });
