@@ -1572,6 +1572,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Triskope staff flag (platform_admins table, RLS lets users read own row).
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  // Site Admin selection lives at App level: toasts remount the view and
+  // would otherwise dump the admin back to the subscriber list mid-work.
+  const [siteAdminSelId, setSiteAdminSelId] = useState(null);
+  const [siteAdminComm, setSiteAdminComm] = useState(null);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [toast, setToast] = useState(null);
 
@@ -7272,7 +7276,9 @@ export default function App() {
   const SiteAdminView = () => {
     const [sites, setSites] = useState(null);
     const [metrics, setMetrics] = useState(null);
-    const [selId, setSelId] = useState(null);
+    // Selection + open community editor live at App level (survive remounts).
+    const selId = siteAdminSelId, setSelId = setSiteAdminSelId;
+    const adminComm = siteAdminComm, setAdminComm = setSiteAdminComm;
     const [saving, setSaving] = useState(false);
     const [err, setErr] = useState("");
     const A = useRef({});
@@ -7290,15 +7296,14 @@ export default function App() {
 
     // Account overview (members, health, features) for the selected org
     const [ov, setOv] = useState(null);
-    // Community pages management (Triskope-managed service)
-    const [adminComm, setAdminComm] = useState(null); // community row being edited
+    // Community pages management (rows local; open editor is App-level)
     const [commRows, setCommRows] = useState(null);
     const loadComms = async (orgId) => {
       const { data } = await supabase.from("communities").select("*").eq("org_id", orgId).order("name");
       setCommRows(data || []);
     };
     const loadOverview = async (orgId) => {
-      setOv(null); setAdminComm(null);
+      setOv(null);
       loadComms(orgId);
       const { data } = await supabase.functions.invoke("admin-manage-org", { body: { action: "overview", org_id: orgId } });
       if (data && !data.error) setOv(data);
@@ -7383,7 +7388,7 @@ export default function App() {
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "280px 1fr", alignItems: "start" }}>
             <Card>
               {sites.map(s => (
-                <button key={s.id} onClick={() => setSelId(s.id)} style={{
+                <button key={s.id} onClick={() => { setSelId(s.id); setAdminComm(null); }} style={{
                   display: "block", width: "100%", textAlign: "left", padding: "12px 14px",
                   background: selId === s.id ? C.bg : "transparent", border: "none",
                   borderRadius: 8, cursor: "pointer", marginBottom: 2,
@@ -7406,7 +7411,13 @@ export default function App() {
                 community={adminComm}
                 forOrg={sel}
                 onBack={() => { setAdminComm(null); loadComms(sel.id); }}
-                onChanged={() => loadComms(sel.id)}
+                onChanged={async () => {
+                  loadComms(sel.id);
+                  // Refresh the row under edit so the editor never reverts to
+                  // pre-save values after the toast-driven remount.
+                  const { data } = await supabase.from("communities").select("*").eq("id", adminComm.id).maybeSingle();
+                  if (data) setAdminComm(data); else setAdminComm(null); // deleted
+                }}
               />
             ) : sel ? (
               <div key={sel.id}>
