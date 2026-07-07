@@ -2759,7 +2759,7 @@ export default function App() {
     } catch { return file; }
   };
 
-  const uploadSiteImage = async (file, onStatus) => {
+  const uploadSiteImage = async (file, onStatus, forOrgId) => {
     if (!file) return null;
     if (!/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
     onStatus?.("Preparing…");
@@ -2767,7 +2767,7 @@ export default function App() {
     if (file.size > 5 * 1024 * 1024) { onStatus?.("Max 5MB"); return null; }
     onStatus?.("Uploading…");
     const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
-    const path = `${org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const path = `${forOrgId || org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const { error } = await supabase.storage.from("site-assets")
       .upload(path, file, { contentType: file.type, upsert: false });
     if (error) { onStatus?.("Upload failed"); console.error("site image upload:", error); return null; }
@@ -2775,7 +2775,7 @@ export default function App() {
     return data?.publicUrl || null;
   };
 
-  const UploadBtn = ({ onUrl }) => {
+  const UploadBtn = ({ onUrl, orgId }) => {
     const btnRef = useRef(null);
     const fileInRef = useRef(null);
     const handle = async (e) => {
@@ -2784,7 +2784,7 @@ export default function App() {
       if (!file) return;
       const btn = btnRef.current;
       if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
-      const url = await uploadSiteImage(file, (msg) => { if (btn) btn.textContent = msg; });
+      const url = await uploadSiteImage(file, (msg) => { if (btn) btn.textContent = msg; }, orgId);
       if (url) {
         onUrl(url);
         if (btn) btn.textContent = "Uploaded ✓";
@@ -4524,10 +4524,12 @@ export default function App() {
   const commTypeColor = (t) =>
     t === "Golf" ? C.teal : t === "Luxury" ? C.purple : t === "Beach" ? C.blue :
     t === "Urban" ? C.amber : t === "Waterway" ? C.blue : C.green;
-  const communityPublicUrl = (c) =>
-    org?.custom_domain
-      ? `https://${org.custom_domain}/communities/${c.slug}`
-      : `${SITES_BASE}/communities/${c.slug}?slug=${encodeURIComponent(org?.slug || "")}&fresh=1`;
+  const communityPublicUrl = (c, forOrg) => {
+    const o = forOrg || org;
+    return o?.custom_domain
+      ? `https://${o.custom_domain}/communities/${c.slug}`
+      : `${SITES_BASE}/communities/${c.slug}?slug=${encodeURIComponent(o?.slug || "")}&fresh=1`;
+  };
 
   const CommunityHubCard = ({ c, leads }) => {
     const pc = c.page_config || {};
@@ -4564,7 +4566,8 @@ export default function App() {
     );
   };
 
-  const CommunityHub = ({ community, onBack, onChanged }) => {
+  const CommunityHub = ({ community, onBack, onChanged, forOrg }) => {
+    const O = forOrg || org; // admin panel edits other orgs' communities
     const c = community;
     const pc = c.page_config || {};
     const R = useRef({});
@@ -4623,7 +4626,7 @@ export default function App() {
           <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 500, color: C.text, margin: 0 }}>{c.name}</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {c.published && (
-              <a href={communityPublicUrl(c)} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
+              <a href={communityPublicUrl(c, O)} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
                 <Globe size={14} /> Open page
               </a>
             )}
@@ -4665,7 +4668,7 @@ export default function App() {
             <label style={lbl}>Hero image</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input ref={setR("hero_image")} defaultValue={pc.hero_image || ""} placeholder="https://… or upload" style={{ ...inS, flex: 1 }} />
-              <UploadBtn onUrl={(url) => { if (R.current.hero_image) R.current.hero_image.value = url; }} />
+              <UploadBtn orgId={O?.id} onUrl={(url) => { if (R.current.hero_image) R.current.hero_image.value = url; }} />
             </div>
             <label style={lbl}>Listings city match (fills the "Homes near" section from IDX)</label>
             <input ref={setR("listings_city")} defaultValue={pc.listings_city || ""} placeholder="Murrells Inlet" style={inS} />
@@ -4692,6 +4695,84 @@ export default function App() {
 
   // Upload button with DOM-ref status (no state = no form wipe on remount).
   const CommunitiesView = () => {
+    // SUBSCRIBER VIEW — READ ONLY. Community pages are a Triskope-managed
+    // service (built + maintained by The Market Edge team); all editing
+    // lives in Site Admin. Subscribers see their live pages and the leads.
+    const [rows, setRows] = useState(null);
+    const [leadCounts, setLeadCounts] = useState({});
+    const load = async () => {
+      const { data } = await supabase.from("communities").select("*").eq("org_id", org.id).order("name");
+      setRows(data || []);
+      const { data: lc } = await supabase.from("leads").select("community_id").eq("org_id", org.id).not("community_id", "is", null);
+      const m = {};
+      (lc || []).forEach(r => { m[r.community_id] = (m[r.community_id] || 0) + 1; });
+      setLeadCounts(m);
+    };
+    useEffect(() => { if (org?.id) load(); }, [org?.id]);
+    const live = (rows || []).filter(r => r.published);
+
+    return (
+      <div>
+        <div style={pageHeader(isMobile)}>
+          <div>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
+              Built and managed for you by The Market Edge team — every page captures leads tagged to its community.
+            </p>
+          </div>
+          {isPlatformAdmin && (
+            <button onClick={() => setView("siteadmin")} style={btnPrimary()}><Wrench size={14} /> Manage in Site Admin</button>
+          )}
+        </div>
+        {rows === null ? (
+          <Card><p style={{ color: C.textMuted, margin: 0 }}>Loading…</p></Card>
+        ) : live.length === 0 ? (
+          <Card style={{ textAlign: "center", padding: 44 }}>
+            <h3 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 500, color: C.text, margin: "0 0 8px" }}>Your community strategy starts here</h3>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.7 }}>
+              As part of your plan, the Triskope team builds dedicated landing pages for the
+              neighborhoods you farm — local-SEO pages that capture leads tagged to each
+              community. Tell us which communities you want and we'll build them.
+            </p>
+            <a href={`mailto:team@triskope.ai?subject=Community pages for ${org?.name || "my account"}`} style={{ ...btnPrimary(), display: "inline-flex", textDecoration: "none" }}>
+              Request my community pages
+            </a>
+          </Card>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
+            {live.map(c => {
+              const pc = c.page_config || {};
+              return (
+                <div key={c.id} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
+                  <div style={{ height: 130, background: pc.hero_image ? `url(${pc.hero_image}) center/cover` : `linear-gradient(150deg, ${commTypeColor(pc.type)}33, #1a1a22)` }} />
+                  <div style={{ padding: 16 }}>
+                    <h3 style={{ fontSize: 16.5, fontWeight: 700, color: C.text, margin: 0 }}>{c.name}</h3>
+                    {pc.tagline && <p style={{ fontSize: 13, color: C.textMuted, margin: "6px 0 10px", lineHeight: 1.5 }}>{pc.tagline}</p>}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 12.5 }}>
+                      <span style={{ color: C.teal, fontWeight: 700 }}>{leadCounts[c.id] || 0} lead{(leadCounts[c.id] || 0) === 1 ? "" : "s"}</span>
+                      <a href={communityPublicUrl(c)} target="_blank" rel="noreferrer" style={{ color: C.text, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
+                        <Globe size={13} /> View page
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <Card style={{ display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "center", minHeight: 200 }}>
+              <p style={{ fontSize: 13.5, color: C.textMuted, margin: "0 0 12px", lineHeight: 1.6 }}>
+                Want another neighborhood page? Content updates?<br />The Triskope team handles it.
+              </p>
+              <a href={`mailto:team@triskope.ai?subject=Community page request (${org?.name || ""})`} style={{ fontSize: 13, color: C.teal, fontWeight: 700, textDecoration: "none" }}>
+                Request changes →
+              </a>
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const LegacyCommunitiesManagerView = () => {
     const [rows, setRows] = useState(null);
     const [leadCounts, setLeadCounts] = useState({});
     const load = async () => {
@@ -7209,8 +7290,16 @@ export default function App() {
 
     // Account overview (members, health, features) for the selected org
     const [ov, setOv] = useState(null);
+    // Community pages management (Triskope-managed service)
+    const [adminComm, setAdminComm] = useState(null); // community row being edited
+    const [commRows, setCommRows] = useState(null);
+    const loadComms = async (orgId) => {
+      const { data } = await supabase.from("communities").select("*").eq("org_id", orgId).order("name");
+      setCommRows(data || []);
+    };
     const loadOverview = async (orgId) => {
-      setOv(null);
+      setOv(null); setAdminComm(null);
+      loadComms(orgId);
       const { data } = await supabase.functions.invoke("admin-manage-org", { body: { action: "overview", org_id: orgId } });
       if (data && !data.error) setOv(data);
     };
@@ -7312,8 +7401,54 @@ export default function App() {
                 </button>
               ))}
             </Card>
-            {sel ? (
+            {sel && adminComm ? (
+              <CommunityHub
+                community={adminComm}
+                forOrg={sel}
+                onBack={() => { setAdminComm(null); loadComms(sel.id); }}
+                onChanged={() => loadComms(sel.id)}
+              />
+            ) : sel ? (
               <div key={sel.id}>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: 0 }}>Community pages <span style={{ fontSize: 11, color: C.textDim, fontWeight: 500 }}>(managed service)</span></h3>
+                    <button onClick={async () => {
+                      const name = window.prompt("Community name (e.g. Prince Creek):");
+                      if (!name?.trim()) return;
+                      const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "community";
+                      const { data, error } = await supabase.from("communities")
+                        .insert({ org_id: sel.id, name: name.trim(), slug, published: false, page_config: {} })
+                        .select("*").single();
+                      if (error) {
+                        const retry = await supabase.from("communities")
+                          .insert({ org_id: sel.id, name: name.trim(), slug: `${slug}-${Date.now().toString(36).slice(-4)}`, published: false, page_config: {} })
+                          .select("*").single();
+                        if (retry.error) { setToast({ message: retry.error.message, kind: "error" }); return; }
+                        setAdminComm(retry.data); loadComms(sel.id); return;
+                      }
+                      setAdminComm(data); loadComms(sel.id);
+                    }} style={{ fontSize: 12.5, fontWeight: 600, color: C.teal, background: C.teal + "14", border: `1px solid ${C.teal}44`, borderRadius: 6, padding: "7px 12px", cursor: "pointer" }}>
+                      + New community
+                    </button>
+                  </div>
+                  {commRows === null ? <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Loading…</p>
+                    : commRows.length === 0 ? <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>No community pages for this subscriber yet.</p>
+                    : commRows.map(cr => (
+                      <div key={cr.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <span style={{ fontSize: 13.5, color: C.text, fontWeight: 600 }}>{cr.name}</span>
+                          <span style={{ marginLeft: 10, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: cr.published ? C.teal : C.textDim }}>
+                            {cr.published ? "Live" : "Draft"}
+                          </span>
+                        </div>
+                        {cr.published && (
+                          <a href={communityPublicUrl(cr, sel)} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.textMuted, textDecoration: "none" }}>View</a>
+                        )}
+                        <button onClick={() => setAdminComm(cr)} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Edit</button>
+                      </div>
+                    ))}
+                </Card>
                 <Card style={{ marginBottom: 16 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: "0 0 12px" }}>Account</h3>
                   <label style={lbl}>Plan</label>
