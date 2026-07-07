@@ -2738,6 +2738,72 @@ export default function App() {
   const FEATURE_PLANS = { communities: "Pro", market_reports: "Pro", ai_assistant: "Enterprise" };
   const featureLocked = (f) => !!f && !isPlatformAdmin && !(org?.features?.[f]);
 
+  // ----- Shared image upload (site-assets bucket) -----
+  // Used by My Website and the Communities editor. Status is shown by
+  // mutating the button via refs, NOT React state: state changes remount
+  // the big forms and wipe unsaved inputs.
+  const compressImage = async (file) => {
+    if (file.type === "image/gif") return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const MAX = 2400;
+      const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+      if (scale === 1 && file.size < 600 * 1024) return file;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+      if (!blob) return file;
+      return new File([blob], (file.name.replace(/\.[^.]+$/, "") || "image") + ".jpg", { type: "image/jpeg" });
+    } catch { return file; }
+  };
+
+  const uploadSiteImage = async (file, onStatus) => {
+    if (!file) return null;
+    if (!/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
+    onStatus?.("Preparing…");
+    file = await compressImage(file);
+    if (file.size > 5 * 1024 * 1024) { onStatus?.("Max 5MB"); return null; }
+    onStatus?.("Uploading…");
+    const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
+    const path = `${org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("site-assets")
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) { onStatus?.("Upload failed"); console.error("site image upload:", error); return null; }
+    const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
+    return data?.publicUrl || null;
+  };
+
+  const UploadBtn = ({ onUrl }) => {
+    const btnRef = useRef(null);
+    const fileInRef = useRef(null);
+    const handle = async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      const btn = btnRef.current;
+      if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
+      const url = await uploadSiteImage(file, (msg) => { if (btn) btn.textContent = msg; });
+      if (url) {
+        onUrl(url);
+        if (btn) btn.textContent = "Uploaded ✓";
+      }
+      setTimeout(() => { if (btn) { btn.textContent = "Upload"; btn.disabled = false; } }, url ? 1600 : 2500);
+    };
+    return (
+      <>
+        <input ref={fileInRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+          style={{ display: "none" }} onChange={handle} />
+        <button ref={btnRef} type="button" onClick={() => fileInRef.current?.click()} style={{
+          padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`,
+          borderRadius: 8, color: C.text, fontSize: 12.5, fontWeight: 600,
+          cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+        }}>Upload</button>
+      </>
+    );
+  };
+
   const Card = ({ children, style = {}, hover = false, onClick }) => (
     <div
       onClick={onClick}
@@ -4511,14 +4577,8 @@ export default function App() {
         .then(({ data }) => setRecent(data || []));
     }, [c.id]);
 
-    const uploadHero = async (file, onStatus) => {
-      if (!file || !/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
-      const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
-      const path = `${org.id}/community-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("site-assets").upload(path, file, { contentType: file.type });
-      if (error) { onStatus?.("Upload failed"); return null; }
-      return supabase.storage.from("site-assets").getPublicUrl(path).data?.publicUrl || null;
-    };
+    // Hero uploads use the shared App-scope uploadSiteImage via UploadBtn
+    // (includes browser-side compression; the old local uploader didn't).
 
     const save = async (extra = {}) => {
       setSaving(true);
@@ -4605,7 +4665,7 @@ export default function App() {
             <label style={lbl}>Hero image</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input ref={setR("hero_image")} defaultValue={pc.hero_image || ""} placeholder="https://… or upload" style={{ ...inS, flex: 1 }} />
-              <CommUploadBtn upload={uploadHero} onUrl={(url) => { if (R.current.hero_image) R.current.hero_image.value = url; }} />
+              <UploadBtn onUrl={(url) => { if (R.current.hero_image) R.current.hero_image.value = url; }} />
             </div>
             <label style={lbl}>Listings city match (fills the "Homes near" section from IDX)</label>
             <input ref={setR("listings_city")} defaultValue={pc.listings_city || ""} placeholder="Murrells Inlet" style={inS} />
@@ -4631,24 +4691,6 @@ export default function App() {
   };
 
   // Upload button with DOM-ref status (no state = no form wipe on remount).
-  const CommUploadBtn = ({ upload, onUrl }) => {
-    const btnRef = useRef(null);
-    const fileRef = useRef(null);
-    const handle = async (e) => {
-      const file = e.target.files?.[0]; e.target.value = "";
-      if (!file) return;
-      const btn = btnRef.current;
-      if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
-      const url = await upload(file, (m) => { if (btn) btn.textContent = m; });
-      if (url) { onUrl(url); if (btn) btn.textContent = "Uploaded ✓"; }
-      setTimeout(() => { if (btn) { btn.textContent = "Upload"; btn.disabled = false; } }, url ? 1500 : 2500);
-    };
-    return (<>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handle} />
-      <button ref={btnRef} type="button" onClick={() => fileRef.current?.click()} style={{ padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Upload</button>
-    </>);
-  };
-
   const CommunitiesView = () => {
     const [rows, setRows] = useState(null);
     const [leadCounts, setLeadCounts] = useState({});
@@ -7444,73 +7486,8 @@ export default function App() {
       </div>
     );
 
-    // ----- Image upload (Supabase Storage bucket: site-assets) -----
-    // Status is shown by mutating the button via refs, NOT React state:
-    // any state change here remounts the form and wipes unsaved inputs.
-    // Downscale big photos in the browser before upload (max 2400px, JPEG 85%).
-    // Phone/DSLR photos are routinely 6-12MB; sites shouldn't serve that anyway.
-    // GIFs pass through untouched to preserve animation.
-    const compressImage = async (file) => {
-      if (file.type === "image/gif") return file;
-      try {
-        const bmp = await createImageBitmap(file);
-        const MAX = 2400;
-        const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
-        if (scale === 1 && file.size < 600 * 1024) return file; // already small
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(bmp.width * scale);
-        canvas.height = Math.round(bmp.height * scale);
-        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
-        if (!blob) return file;
-        return new File([blob], (file.name.replace(/\.[^.]+$/, "") || "image") + ".jpg", { type: "image/jpeg" });
-      } catch { return file; }
-    };
-
-    const uploadSiteImage = async (file, onStatus) => {
-      if (!file) return null;
-      if (!/^image\//.test(file.type)) { onStatus?.("Images only"); return null; }
-      onStatus?.("Preparing…");
-      file = await compressImage(file);
-      if (file.size > 5 * 1024 * 1024) { onStatus?.("Max 5MB"); return null; }
-      onStatus?.("Uploading…");
-      const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
-      const path = `${org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from("site-assets")
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (error) { onStatus?.("Upload failed"); console.error("site image upload:", error); return null; }
-      const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
-      return data?.publicUrl || null;
-    };
-
-    const UploadBtn = ({ onUrl }) => {
-      const btnRef = useRef(null);
-      const fileInRef = useRef(null);
-      const handle = async (e) => {
-        const file = e.target.files?.[0];
-        e.target.value = "";
-        if (!file) return;
-        const btn = btnRef.current;
-        if (btn) { btn.disabled = true; btn.textContent = "Uploading…"; }
-        const url = await uploadSiteImage(file, (msg) => { if (btn) btn.textContent = msg; });
-        if (url) {
-          onUrl(url);
-          if (btn) btn.textContent = "Uploaded ✓";
-        }
-        setTimeout(() => { if (btn) { btn.textContent = "Upload"; btn.disabled = false; } }, url ? 1600 : 2500);
-      };
-      return (
-        <>
-          <input ref={fileInRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
-            style={{ display: "none" }} onChange={handle} />
-          <button ref={btnRef} type="button" onClick={() => fileInRef.current?.click()} style={{
-            padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`,
-            borderRadius: 8, color: C.text, fontSize: 12.5, fontWeight: 600,
-            cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-          }}>Upload</button>
-        </>
-      );
-    };
+    // ----- Image upload helpers live at App scope (shared with the -----
+    // ----- Communities editor); ImgText remains here.              -----
 
     // Image field: paste a URL or upload a file (fills the URL for you).
     const ImgText = ({ k, label, ph }) => (
