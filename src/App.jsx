@@ -1503,6 +1503,7 @@ export default function App() {
   const [org, setOrg] = useState(null); // { id, name, slug } for the signed-in user
   const [orgs, setOrgs] = useState([]); // every workspace the user belongs to (for the switcher)
   const [profile, setProfile] = useState(null);
+  const [linkExpired, setLinkExpired] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -1513,6 +1514,11 @@ export default function App() {
     const search = window.location.search || "";
     const isInviteHash = hash.includes("type=invite") || hash.includes("type=recovery");
     const isInviteQuery = /type=(invite|recovery)/.test(search) || /[?&]code=/.test(search);
+    // Expired/used link: Supabase redirects with error_code=otp_expired (or
+    // access_denied). Show the self-service "send me a fresh link" screen.
+    if (/error_code=otp_expired|error=access_denied/.test(hash + search)) {
+      setLinkExpired(true);
+    }
     if (isInviteHash || isInviteQuery) {
       setNeedsPassword(true);
     }
@@ -1570,6 +1576,9 @@ export default function App() {
   // so Back/Forward move between screens instead of leaving the app.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Never touch auth fragments (invite/recovery tokens, error codes) —
+    // Supabase owns those hashes; overwriting them breaks link handling.
+    if (/access_token=|error=|type=|code=/.test(window.location.hash)) return;
     if (window.location.hash === `#${view}`) return;
     if (!window.location.hash && view === "dashboard") {
       window.history.replaceState({ view }, "", "#dashboard");
@@ -8084,6 +8093,57 @@ async function triskopeSubmit(e){
   const currentPhases = aiType ? (THINKING_PHASES[aiType] || THINKING_PHASES["market-report"]) : [];
 
   // -------- AUTH GATE --------
+  // Shown when an invite/recovery link has expired or was already used.
+  // Self-service: a fresh recovery link fully re-opens the door because
+  // membership is created at invite time, not at first sign-in.
+  const ExpiredLinkScreen = ({ onBack }) => {
+    const emailRef = useRef(null);
+    const [state, setState] = useState("idle"); // idle | sending | sent | error
+    const [msg, setMsg] = useState("");
+    const send = async () => {
+      const email = (emailRef.current?.value || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg("Enter the email your invite was sent to."); return; }
+      setState("sending"); setMsg("");
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) { setState("error"); setMsg(error.message); return; }
+      setState("sent");
+    };
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "-apple-system, system-ui, sans-serif" }}>
+        <div style={{ maxWidth: 420, width: "100%", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: 32, textAlign: "center" }}>
+          <TriskopeLogo size={40} />
+          {state === "sent" ? (
+            <>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "18px 0 8px" }}>Fresh link sent</h1>
+              <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>
+                Check your inbox — the new link will let you set your password and
+                get right in. (Look in spam if it's not there in a minute.)
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "18px 0 8px" }}>That link has expired</h1>
+              <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: "0 0 20px" }}>
+                No problem — links expire for your security. Enter your email and
+                we'll send a fresh one right now.
+              </p>
+              <input ref={emailRef} type="email" placeholder="you@example.com" autoComplete="email"
+                onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+                style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 15, outline: "none", marginBottom: 12 }} />
+              {msg && <p style={{ color: C.red, fontSize: 13.5, margin: "0 0 12px" }}>{msg}</p>}
+              <button onClick={send} disabled={state === "sending"} style={{ ...btnPrimary(), width: "100%", justifyContent: "center", opacity: state === "sending" ? 0.6 : 1 }}>
+                {state === "sending" ? "Sending…" : "Send me a fresh link"}
+              </button>
+              <button onClick={onBack} style={{ marginTop: 12, background: "none", border: "none", color: C.textDim, fontSize: 13, cursor: "pointer" }}>
+                Back to sign in
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const SetPasswordScreen = ({ onDone }) => {
     const pwRef = useRef(null);
     const pw2Ref = useRef(null);
@@ -8178,6 +8238,7 @@ async function triskopeSubmit(e){
     );
   }
   if (needsPassword) return <SetPasswordScreen onDone={() => { setNeedsPassword(false); window.location.hash = ""; window.history.replaceState(null, "", window.location.pathname); }} />;
+  if (!session && linkExpired) return <ExpiredLinkScreen onBack={() => { setLinkExpired(false); window.history.replaceState(null, "", window.location.pathname); }} />;
   if (!session) return <Auth />;
 
   return (

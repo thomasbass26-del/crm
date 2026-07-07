@@ -76,6 +76,13 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Write the invite row FIRST: the hardened accept_invite_on_signup trigger
+  // only grants membership when a matching PENDING invite exists, and it
+  // fires during user creation below.
+  await admin.from("invites").upsert(
+    { org_id: orgId, email, role, status: "pending", invited_by: userId },
+    { onConflict: "org_id,email" });
+
   const { data: invited, error: ierr } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${SITE}/`,
     data: { invited_org_id: orgId, invited_role: role },
@@ -94,10 +101,6 @@ Deno.serve(async (req) => {
       return json({ error: "Invite sent but membership failed: " + merr.message }, 500);
     }
   }
-
-  await admin.from("invites").upsert(
-    { org_id: orgId, email, role, status: "pending", invited_by: userId },
-    { onConflict: "org_id,email" });
 
   return json({ ok: true, mode: "invited_new_user" });
 });
