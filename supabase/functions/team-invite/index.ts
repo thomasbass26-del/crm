@@ -76,11 +76,24 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { error: ierr } = await admin.auth.admin.inviteUserByEmail(email, {
+  const { data: invited, error: ierr } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${SITE}/`,
     data: { invited_org_id: orgId, invited_role: role },
   });
   if (ierr) return json({ error: ierr.message }, 500);
+
+  // ROOT-CAUSE FIX: create the membership NOW, not at first sign-in. The
+  // invited_org_id metadata was never consumed anywhere, so invited users
+  // signed in membership-less and the signup path minted stray personal
+  // orgs (source of the duplicate-org bug).
+  if (invited?.user?.id) {
+    const { error: merr } = await admin.from("org_members")
+      .insert({ org_id: orgId, user_id: invited.user.id, role });
+    if (merr && !String(merr.message).includes("duplicate")) {
+      console.error("membership insert for invited user failed:", merr.message);
+      return json({ error: "Invite sent but membership failed: " + merr.message }, 500);
+    }
+  }
 
   await admin.from("invites").upsert(
     { org_id: orgId, email, role, status: "pending", invited_by: userId },
