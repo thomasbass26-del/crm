@@ -4581,6 +4581,7 @@ export default function App() {
     const setR = (k) => (el) => { if (el) R.current[k] = el; };
     const [saving, setSaving] = useState(false);
     const [recent, setRecent] = useState(null);
+    const [facts, setFacts] = useState(() => (community.page_config || {}).facts || []);
     useEffect(() => {
       supabase.from("leads").select("id, name, created_at, source").eq("community_id", c.id)
         .order("created_at", { ascending: false }).limit(6)
@@ -4601,6 +4602,9 @@ export default function App() {
         highlights: (R.current.highlights?.value || "").split("\n").map(s => s.trim()).filter(Boolean),
         hero_image: (R.current.hero_image?.value || "").trim(),
         listings_city: (R.current.listings_city?.value || "").trim(),
+        facts: facts.filter(f => (f.label || "").trim() || (f.value || "").trim()),
+        insider: (R.current.insider?.value || "").split("\n").map(s => s.trim()).filter(Boolean),
+        expert_note: (R.current.expert_note?.value || "").trim(),
       };
       const update = {
         name: (R.current.name?.value || c.name).trim(),
@@ -4672,6 +4676,23 @@ export default function App() {
             <textarea ref={setR("description")} defaultValue={pc.description || c.hero_copy || ""} rows={5} style={{ ...inS, resize: "vertical" }} />
             <label style={lbl}>Highlights (one per line)</label>
             <textarea ref={setR("highlights")} defaultValue={(pc.highlights || []).join("\n")} rows={4} style={{ ...inS, resize: "vertical" }} />
+            <label style={lbl}>Quick facts (shown as a stats band — e.g. Median price / $485K)</label>
+            {facts.map((f, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                <input defaultValue={f.label} onChange={e => setFacts(prev => prev.map((r, idx) => idx === i ? { ...r, label: e.target.value } : r))} placeholder="Median price" style={{ ...inS, flex: 1 }} />
+                <input defaultValue={f.value} onChange={e => setFacts(prev => prev.map((r, idx) => idx === i ? { ...r, value: e.target.value } : r))} placeholder="$485K" style={{ ...inS, flex: 1 }} />
+                <button onClick={() => setFacts(prev => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>×</button>
+              </div>
+            ))}
+            {facts.length < 6 && (
+              <button onClick={() => setFacts(prev => [...prev, { label: "", value: "" }])} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                <Plus size={12} /> Add fact
+              </button>
+            )}
+            <label style={lbl}>Local insight (one per line — the insider knowledge only a farming agent has: HOA quirks, best sections, flood notes, what listings don't say)</label>
+            <textarea ref={setR("insider")} defaultValue={(pc.insider || []).join("\n")} rows={5} placeholder={"The Bluffs section backs to the preserve — quietest streets in the community\nHOA covers front-yard irrigation but not the well pump\nHomes on Copper Leaf sell in under a week; get alerts set up early"} style={{ ...inS, resize: "vertical" }} />
+            <label style={lbl}>Local expert note (why {"{agent}"} is THE agent for this community — sales here, years farming it, lives nearby)</label>
+            <textarea ref={setR("expert_note")} defaultValue={pc.expert_note || ""} rows={3} placeholder="Carrie has closed 14 homes in Carolina Forest over the last three years and lives ten minutes away — she previews nearly every new listing here in person." style={{ ...inS, resize: "vertical" }} />
             <label style={lbl}>Hero image</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input ref={setR("hero_image")} defaultValue={pc.hero_image || ""} placeholder="https://… or upload" style={{ ...inS, flex: 1 }} />
