@@ -1576,6 +1576,7 @@ export default function App() {
   // would otherwise dump the admin back to the subscriber list mid-work.
   const [siteAdminSelId, setSiteAdminSelId] = useState(null);
   const [siteAdminComm, setSiteAdminComm] = useState(null);
+  const [siteAdminPage, setSiteAdminPage] = useState(null);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [toast, setToast] = useState(null);
 
@@ -4573,6 +4574,118 @@ export default function App() {
     );
   };
 
+  // Editor for Triskope-authored custom HTML landing pages. Paste or upload
+  // a full single-file HTML document; it serves verbatim at /<slug> on the
+  // subscriber's domain with the lead-capture auto-wire injected.
+  const CustomPageEditor = ({ page, forOrg, onBack, onChanged }) => {
+    const O = forOrg || org;
+    const R = useRef({});
+    const setR = (k) => (el) => { if (el) R.current[k] = el; };
+    const [saving, setSaving] = useState(false);
+    const fileRef = useRef(null);
+
+    const pageUrl = `https://${O?.custom_domain || `${O?.slug}.triskope.ai`}/${page.slug}?fresh=1`;
+
+    const save = async (extra = {}) => {
+      setSaving(true);
+      const slug = (R.current.slug?.value || page.slug).trim().toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || page.slug;
+      const update = {
+        title: (R.current.title?.value || page.title).trim(),
+        slug,
+        html: R.current.html?.value ?? page.html,
+        updated_at: new Date().toISOString(),
+        ...extra,
+      };
+      const { error } = await supabase.from("custom_pages").update(update).eq("id", page.id);
+      setSaving(false);
+      if (error) {
+        setToast({ message: error.message.includes("duplicate") ? "That slug is already used by another page." : error.message, kind: "error" });
+        return;
+      }
+      onChanged();
+      setToast({ message: `${update.title} saved${"published" in extra ? (extra.published ? " and published" : " and unpublished") : ""}.`, kind: "success" });
+    };
+
+    const del = async () => {
+      if (!window.confirm(`Delete "${page.title}"? The public page comes down immediately.`)) return;
+      const { error } = await supabase.from("custom_pages").delete().eq("id", page.id);
+      if (error) { setToast({ message: error.message, kind: "error" }); return; }
+      onBack();
+    };
+
+    const onFile = (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { if (R.current.html) R.current.html.value = String(reader.result || ""); };
+      reader.readAsText(file);
+    };
+
+    const inS = { width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 14, outline: "none", fontFamily: "inherit" };
+    const lbl = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim, marginBottom: 6, marginTop: 14 };
+
+    return (
+      <div>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.teal, fontSize: 13, cursor: "pointer", padding: "4px 0", minHeight: 44, display: "flex", alignItems: "center", gap: 4 }}>
+          <ChevronLeft size={16} /> Back to {O?.name || "subscriber"}
+        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, margin: "8px 0 16px" }}>
+          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 500, color: C.text, margin: 0 }}>{page.title}</h1>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {page.published && (
+              <a href={pageUrl} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
+                <Globe size={14} /> Open page
+              </a>
+            )}
+            <button onClick={() => save({ published: !page.published })} disabled={saving} style={{
+              padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+              border: `1px solid ${page.published ? C.border : C.teal}`,
+              background: page.published ? C.bg : C.teal + "18",
+              color: page.published ? C.text : C.teal,
+            }}>{page.published ? "Unpublish" : "Publish page"}</button>
+            <button onClick={() => save()} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <Card>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr" }}>
+            <div>
+              <label style={{ ...lbl, marginTop: 0 }}>Page title (internal)</label>
+              <input ref={setR("title")} defaultValue={page.title} style={inS} />
+            </div>
+            <div>
+              <label style={{ ...lbl, marginTop: 0 }}>URL slug</label>
+              <input ref={setR("slug")} defaultValue={page.slug} style={inS} />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <label style={lbl}>HTML document (full single-file page)</label>
+            <button onClick={() => fileRef.current?.click()} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "7px 12px", cursor: "pointer", marginTop: 8 }}>
+              Upload .html file
+            </button>
+            <input ref={fileRef} type="file" accept=".html,.htm,text/html" style={{ display: "none" }} onChange={onFile} />
+          </div>
+          <textarea ref={setR("html")} defaultValue={page.html} rows={22} spellCheck={false}
+            placeholder={"<!DOCTYPE html>\n<html>\n  ...your full landing page...\n</html>"}
+            style={{ ...inS, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.55, resize: "vertical", whiteSpace: "pre" }} />
+          <div style={{ marginTop: 14, padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12.5, color: C.textMuted, lineHeight: 1.7 }}>
+            <strong style={{ color: C.text }}>CRM wiring</strong> — add <code>data-tme-lead</code> to any &lt;form&gt; and it submits to this subscriber's CRM automatically.
+            Fields: <code>name</code>, <code>email</code>, <code>phone</code>, <code>message</code>; optional <code>data-source="beach-guide"</code> (defaults to landing-page),
+            <code> data-success="Thanks!"</code>, a <code>consent</code> checkbox, and a hidden <code>website</code> honeypot input.
+            Tokens replaced at serve time: <code>{"{{ORG_SLUG}}"}</code>, <code>{"{{ORG_NAME}}"}</code>, <code>{"{{LEAD_CAPTURE_URL}}"}</code>, <code>{"{{PAGE_SLUG}}"}</code>.
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+            <button onClick={del} style={{ background: "none", border: "none", color: C.red, fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>Delete page</button>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
   const CommunityHub = ({ community, onBack, onChanged, forOrg }) => {
     const O = forOrg || org; // admin panel edits other orgs' communities
     const c = community;
@@ -7322,6 +7435,13 @@ export default function App() {
     const [ov, setOv] = useState(null);
     // Community pages management (rows local; open editor is App-level)
     const [commRows, setCommRows] = useState(null);
+    // Custom HTML landing pages (Triskope-managed, like communities)
+    const [pageRows, setPageRows] = useState(null);
+    const adminPage = siteAdminPage, setAdminPage = setSiteAdminPage;
+    const loadPages = async (orgId) => {
+      const { data } = await supabase.from("custom_pages").select("*").eq("org_id", orgId).order("slug");
+      setPageRows(data || []);
+    };
     const loadComms = async (orgId) => {
       const { data } = await supabase.from("communities").select("*").eq("org_id", orgId).order("name");
       setCommRows(data || []);
@@ -7329,6 +7449,7 @@ export default function App() {
     const loadOverview = async (orgId) => {
       setOv(null);
       loadComms(orgId);
+      loadPages(orgId);
       const { data } = await supabase.functions.invoke("admin-manage-org", { body: { action: "overview", org_id: orgId } });
       if (data && !data.error) setOv(data);
     };
@@ -7412,7 +7533,7 @@ export default function App() {
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "280px 1fr", alignItems: "start" }}>
             <Card>
               {sites.map(s => (
-                <button key={s.id} onClick={() => { setSelId(s.id); setAdminComm(null); }} style={{
+                <button key={s.id} onClick={() => { setSelId(s.id); setAdminComm(null); setAdminPage(null); }} style={{
                   display: "block", width: "100%", textAlign: "left", padding: "12px 14px",
                   background: selId === s.id ? C.bg : "transparent", border: "none",
                   borderRadius: 8, cursor: "pointer", marginBottom: 2,
@@ -7430,7 +7551,18 @@ export default function App() {
                 </button>
               ))}
             </Card>
-            {sel && adminComm ? (
+            {sel && adminPage ? (
+              <CustomPageEditor
+                page={adminPage}
+                forOrg={sel}
+                onBack={() => { setAdminPage(null); loadPages(sel.id); }}
+                onChanged={async () => {
+                  loadPages(sel.id);
+                  const { data } = await supabase.from("custom_pages").select("*").eq("id", adminPage.id).maybeSingle();
+                  if (data) setAdminPage(data); else setAdminPage(null);
+                }}
+              />
+            ) : sel && adminComm ? (
               <CommunityHub
                 community={adminComm}
                 forOrg={sel}
@@ -7481,6 +7613,46 @@ export default function App() {
                           <a href={communityPublicUrl(cr, sel)} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.textMuted, textDecoration: "none" }}>View</a>
                         )}
                         <button onClick={() => setAdminComm(cr)} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Edit</button>
+                      </div>
+                    ))}
+                </Card>
+                <Card style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: 0 }}>Custom landing pages <span style={{ fontSize: 11, color: C.textDim, fontWeight: 500 }}>(HTML, managed service)</span></h3>
+                    <button onClick={async () => {
+                      const title = window.prompt("Page title (e.g. Beach Buyer's Guide):");
+                      if (!title?.trim()) return;
+                      const slug = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "page";
+                      let { data, error } = await supabase.from("custom_pages")
+                        .insert({ org_id: sel.id, title: title.trim(), slug, html: "", published: false })
+                        .select("*").single();
+                      if (error) {
+                        const retry = await supabase.from("custom_pages")
+                          .insert({ org_id: sel.id, title: title.trim(), slug: `${slug}-${Date.now().toString(36).slice(-4)}`, html: "", published: false })
+                          .select("*").single();
+                        if (retry.error) { setToast({ message: retry.error.message, kind: "error" }); return; }
+                        data = retry.data;
+                      }
+                      setAdminPage(data); loadPages(sel.id);
+                    }} style={{ fontSize: 12.5, fontWeight: 600, color: C.teal, background: C.teal + "14", border: `1px solid ${C.teal}44`, borderRadius: 6, padding: "7px 12px", cursor: "pointer" }}>
+                      + New page
+                    </button>
+                  </div>
+                  {pageRows === null ? <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Loading…</p>
+                    : pageRows.length === 0 ? <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>No custom landing pages for this subscriber yet.</p>
+                    : pageRows.map(pr => (
+                      <div key={pr.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <span style={{ fontSize: 13.5, color: C.text, fontWeight: 600 }}>{pr.title}</span>
+                          <span style={{ marginLeft: 8, fontSize: 12, color: C.textDim }}>/{pr.slug}</span>
+                          <span style={{ marginLeft: 10, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: pr.published ? C.teal : C.textDim }}>
+                            {pr.published ? "Live" : "Draft"}
+                          </span>
+                        </div>
+                        {pr.published && (
+                          <a href={`https://${sel.custom_domain || `${sel.slug}.triskope.ai`}/${pr.slug}?fresh=1`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.textMuted, textDecoration: "none" }}>View</a>
+                        )}
+                        <button onClick={() => setAdminPage(pr)} style={{ fontSize: 12, fontWeight: 600, color: C.text, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>Edit</button>
                       </div>
                     ))}
                 </Card>
