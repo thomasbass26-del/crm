@@ -26,7 +26,13 @@ const CORS = {
 };
 const err = (status: number, msg: string) =>
   new Response(JSON.stringify({ error: msg }), {
-    status, headers: { "content-type": "application/json", ...CORS },
+    status, headers: {
+      "content-type": "application/json",
+      // Cache 404s briefly: the site middleware probes for a custom
+      // homepage on every root request, so misses must be cheap.
+      "cache-control": "public, s-maxage=120, stale-while-revalidate=300",
+      ...CORS,
+    },
   });
 
 // Auto-wire: serialize + POST any <form data-tme-lead> to lead-capture.

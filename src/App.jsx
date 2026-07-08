@@ -4677,6 +4677,8 @@ export default function App() {
             Fields: <code>name</code>, <code>email</code>, <code>phone</code>, <code>message</code>; optional <code>data-source="beach-guide"</code> (defaults to landing-page),
             <code> data-success="Thanks!"</code>, a <code>consent</code> checkbox, and a hidden <code>website</code> honeypot input.
             Tokens replaced at serve time: <code>{"{{ORG_SLUG}}"}</code>, <code>{"{{ORG_NAME}}"}</code>, <code>{"{{LEAD_CAPTURE_URL}}"}</code>, <code>{"{{PAGE_SLUG}}"}</code>.
+            <br /><strong style={{ color: C.text }}>Homepage takeover</strong> — slug <code>home</code>, published, replaces this subscriber's entire templated homepage
+            (their /listings, /communities and /home-value pages keep working). Unpublish to restore the template.
           </div>
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
             <button onClick={del} style={{ background: "none", border: "none", color: C.red, fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0 }}>Delete page</button>
