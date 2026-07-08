@@ -4530,8 +4530,11 @@ export default function App() {
     t === "Urban" ? C.amber : t === "Waterway" ? C.blue : C.green;
   const communityPublicUrl = (c, forOrg) => {
     const o = forOrg || org;
-    return o?.custom_domain
-      ? `https://${o.custom_domain}/communities/${c.slug}`
+    // Canonical: custom domain if set, else the org's triskope.ai subdomain.
+    // (The vercel.app?slug= form predates DNS and remains only for previews.)
+    const host = o?.custom_domain || (o?.slug ? `${o.slug}.triskope.ai` : null);
+    return host
+      ? `https://${host}/communities/${c.slug}`
       : `${SITES_BASE}/communities/${c.slug}?slug=${encodeURIComponent(o?.slug || "")}&fresh=1`;
   };
 
