@@ -21,6 +21,10 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         text-rendering: optimizeLegibility;
+        /* Lining tabular numerals: Cormorant's default oldstyle figures
+           (digits dipping below the baseline) read soft/antique in a UI.
+           Lining figures sit firm and align in columns. */
+        font-variant-numeric: lining-nums tabular-nums;
       }
       body { background: #f9f6f0; }
       ::-webkit-scrollbar { width: 8px; height: 8px; }

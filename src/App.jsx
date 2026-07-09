@@ -727,7 +727,7 @@ const StatCard = ({ icon: Icon, label, value, change, color = C.teal, subtitle, 
       <div style={{ width: 40, height: 40, borderRadius: 10, background: color + "15", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon size={20} color={color} /></div>
       {change && <span style={{ fontSize: 13, fontWeight: 600, color: C.green, display: "flex", alignItems: "center", gap: 2 }}><TrendingUp size={14} /> {change}</span>}
     </div>
-    <div style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, lineHeight: 1, letterSpacing: "0.01em" }}>{value}</div>
+    <div style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, lineHeight: 1, letterSpacing: "0.01em" }}>{value}</div>
     <div style={{ fontSize: 13, color: C.textMuted, marginTop: 2 }}>{label}</div>
     {subtitle && <div style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>{subtitle}</div>}
     {sparkline && sparkline.length > 0 && (
@@ -2896,10 +2896,10 @@ export default function App() {
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 20, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 0 }}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>
               Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}{profile?.display_name ? `, ${profile.display_name.split(" ")[0]}` : ""}
             </h1>
-            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Here's what's moving today across triskope.</p>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Here's what's moving today across your pipeline.</p>
           </div>
           <button onClick={() => setView("inbox")} aria-label="Notifications" style={{
             position: "relative", display: "flex", alignItems: "center", justifyContent: "center",
@@ -3231,7 +3231,7 @@ export default function App() {
     <div>
       <div style={pageHeader(isMobile)}>
         <div>
-          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Lead Management</h1>
+          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Lead Management</h1>
           <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>AI-powered lead scoring and qualification</p>
         </div>
         {!selectedLead && (
@@ -3744,7 +3744,7 @@ export default function App() {
         <div>
           <div style={pageHeader(isMobile)}>
             <div>
-              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Pipeline</h1>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Pipeline</h1>
               <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Pick a stage. Use the arrows or Move to advance a lead.</p>
             </div>
           </div>
@@ -3863,7 +3863,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Pipeline</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Pipeline</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
               {isMobile ? "Tap the stage badge on a card to move it." : "Drag leads across stages, or tap the stage badge to pick a destination."}
             </p>
@@ -4161,7 +4161,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Market Reports</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Market Reports</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Real market stats computed from your IDX MLS listings — by area or community.</p>
           </div>
         </div>
@@ -4196,7 +4196,7 @@ export default function App() {
         {stats && !stats.empty && (
           <div>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-              <h2 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 500, color: C.text, margin: 0 }}>{stats.area_label}</h2>
+              <h2 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 600, color: C.text, margin: 0 }}>{stats.area_label}</h2>
               <span style={{ fontSize: 12, color: C.textMuted }}>{stats.total_listings} listings · from your MLS feed</span>
             </div>
 
@@ -4658,7 +4658,7 @@ export default function App() {
           <ChevronLeft size={16} /> Back to {O?.name || "subscriber"}
         </button>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, margin: "8px 0 16px" }}>
-          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 500, color: C.text, margin: 0 }}>{page.title}</h1>
+          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 600, color: C.text, margin: 0 }}>{page.title}</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {page.published && (
               <a href={pageUrl} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
@@ -4775,7 +4775,7 @@ export default function App() {
           <ChevronLeft size={16} /> Back to all communities
         </button>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, margin: "8px 0 16px" }}>
-          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 500, color: C.text, margin: 0 }}>{c.name}</h1>
+          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 26 : 34, fontWeight: 600, color: C.text, margin: 0 }}>{c.name}</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {c.published && (
               <a href={communityPublicUrl(c, O)} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13, fontWeight: 500, textDecoration: "none" }}>
@@ -4884,7 +4884,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
               Built and managed for you by the {BRAND.name} team — every page captures leads tagged to its community.
             </p>
@@ -4897,7 +4897,7 @@ export default function App() {
           <Card><p style={{ color: C.textMuted, margin: 0 }}>Loading…</p></Card>
         ) : live.length === 0 ? (
           <Card style={{ textAlign: "center", padding: 44 }}>
-            <h3 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 500, color: C.text, margin: "0 0 8px" }}>Your community strategy starts here</h3>
+            <h3 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 600, color: C.text, margin: "0 0 8px" }}>Your community strategy starts here</h3>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.7 }}>
               As part of your plan, the {BRAND.name} team builds dedicated landing pages for the
               neighborhoods you farm — local-SEO pages that capture leads tagged to each
@@ -4977,7 +4977,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Each community publishes a landing page on your website that captures leads tagged to it.</p>
           </div>
           <button onClick={createCommunity} style={btnPrimary()}><Plus size={14} /> New Community</button>
@@ -5138,7 +5138,7 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", position: "relative" }}>
             <Avatar name={agent.name} size={isMobile ? 72 : 88} color={color} />
             <div style={{ flex: 1, minWidth: 200 }}>
-              <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 30 : 42, fontWeight: 500, color: C.textInv, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 30 : 42, fontWeight: 600, color: C.textInv, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>
                 {agent.name}
               </h1>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
@@ -5395,7 +5395,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>
               Agents
             </h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
@@ -5461,7 +5461,7 @@ export default function App() {
   // ----- AI TOOLS -----
   const AIView = () => (
     <div>
-      <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>AI Tools</h1>
+      <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>AI Tools</h1>
       <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 24px" }}>Generate reports, descriptions, emails, and lead analysis</p>
       <div style={gridCols(isMobile, 280)}>
         {[
@@ -5495,7 +5495,7 @@ export default function App() {
   // ----- PLANS -----
   const PlansView = () => (
     <div>
-      <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Subscription Plans</h1>
+      <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Subscription Plans</h1>
       <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 24px" }}>Tiered pricing for real estate agents</p>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16 }}>
         {PLANS.map(p => (
@@ -5526,7 +5526,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Notifications</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Notifications</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
               {inboxItems.length === 0 ? "Nothing needs your attention right now." : unread > 0 ? `${unread} unread • ${inboxItems.length} total` : "All caught up"}
             </p>
@@ -5645,7 +5645,7 @@ export default function App() {
 
     return (
       <div>
-        <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Tasks & follow-ups</h1>
+        <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Tasks & follow-ups</h1>
         <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 16px" }}>
           {totalOpen === 0 ? "No open follow-ups yet — add one below, with or without a lead" : `${totalOpen} open across all leads`}
         </p>
@@ -5877,7 +5877,7 @@ export default function App() {
           }}>
             <div>
               <div style={{
-                fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500,
+                fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 600,
                 lineHeight: 1, letterSpacing: "0.01em",
                 textShadow: "0 2px 8px rgba(0,0,0,0.5)",
               }}>{formatPrice(L.price)}</div>
@@ -5910,15 +5910,15 @@ export default function App() {
             justifyContent: "space-between",
           }}>
             <div style={{ textAlign: "center", flex: 1, borderRight: `1px solid ${C.border}`, padding: "0 4px" }}>
-              <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 500, color: C.text, lineHeight: 1 }}>{L.beds}</div>
+              <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 600, color: C.text, lineHeight: 1 }}>{L.beds}</div>
               <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Bed</div>
             </div>
             <div style={{ textAlign: "center", flex: 1, borderRight: `1px solid ${C.border}`, padding: "0 4px" }}>
-              <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 500, color: C.text, lineHeight: 1 }}>{L.baths}</div>
+              <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 600, color: C.text, lineHeight: 1 }}>{L.baths}</div>
               <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Bath</div>
             </div>
             <div style={{ textAlign: "center", flex: 1.4, padding: "0 4px" }}>
-              <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 500, color: C.text, lineHeight: 1 }}>{L.sqft.toLocaleString()}</div>
+              <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 600, color: C.text, lineHeight: 1 }}>{L.sqft.toLocaleString()}</div>
               <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Sqft</div>
             </div>
           </div>
@@ -5942,7 +5942,7 @@ export default function App() {
     <div>
       <div style={pageHeader(isMobile)}>
         <div>
-          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Listings</h1>
+          <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Listings</h1>
           <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Active Grand Strand inventory · MLS auto-sync</p>
         </div>
       </div>
@@ -6231,7 +6231,7 @@ export default function App() {
               <div style={{ fontSize: 9.5, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 700, marginBottom: 6 }}>
                 {L.community}
               </div>
-              <div style={{ fontFamily: SERIF_FONT, fontSize: 36, fontWeight: 500, lineHeight: 1, letterSpacing: "0.01em", textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
+              <div style={{ fontFamily: SERIF_FONT, fontSize: 36, fontWeight: 600, lineHeight: 1, letterSpacing: "0.01em", textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
                 {formatPrice(L.price)}
               </div>
             </div>
@@ -6300,7 +6300,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>CRM Tools</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>CRM Tools</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Manage your sites, IDX feeds, email branding, and AI tools.</p>
           </div>
         </div>
@@ -6336,7 +6336,7 @@ export default function App() {
         <div>
           <div style={pageHeader(isMobile)}>
             <div>
-              <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Site preview</h1>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Site preview</h1>
               <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
                 Your live site, rendered from what you saved in My Website.
               </p>
@@ -7244,7 +7244,7 @@ export default function App() {
         </button>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Add Agent</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Add Agent</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Onboard a new agent — creates their workspace and sends them an invite to log in.</p>
           </div>
         </div>
@@ -7378,7 +7378,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0 }}>Email Branding</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0 }}>Email Branding</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>How your nurture emails look. Updates apply to all outgoing emails.</p>
           </div>
           <button onClick={save} disabled={saving} style={{ ...btnPrimary(), opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save branding"}</button>
@@ -7534,7 +7534,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Site Admin</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Site Admin</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Brand, SEO, and domains for every subscriber site. Content stays with the subscriber.</p>
           </div>
         </div>
@@ -7930,7 +7930,7 @@ export default function App() {
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>My Website</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>My Website</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Edit your site content here. Saves go live on your site right away.</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -8191,7 +8191,7 @@ async function triskopeSubmit(e){
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Connect your site</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Connect your site</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Capture leads from your website straight into this CRM — scored and ready to work.</p>
           </div>
         </div>
@@ -8314,7 +8314,7 @@ async function triskopeSubmit(e){
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, lineHeight: 1.1 }}>IDX Feeds</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, lineHeight: 1.1 }}>IDX Feeds</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Attach an agent's IDX/MLS feed. Listings sync into the app once a feed is connected.</p>
           </div>
           {!isMobile && (
@@ -8386,7 +8386,7 @@ async function triskopeSubmit(e){
         {showAdd && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setShowAdd(false)}>
             <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
-              <h3 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 500, color: C.text, margin: "0 0 16px" }}>Attach an IDX feed</h3>
+              <h3 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 600, color: C.text, margin: "0 0 16px" }}>Attach an IDX feed</h3>
 
               <div style={{ marginBottom: 12 }}>
                 <div style={lbl}>Vendor</div>
@@ -8493,7 +8493,7 @@ async function triskopeSubmit(e){
       <div>
         <div style={pageHeader(isMobile)}>
           <div>
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Team</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Team</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>Invite teammates to {org?.name ?? "this workspace"} and set their access.</p>
           </div>
         </div>
@@ -8554,7 +8554,7 @@ async function triskopeSubmit(e){
         <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 12, background: C.gold + "1a", color: C.gold, marginBottom: 16 }}>
           <Lock size={22} />
         </div>
-        <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500, color: C.text, margin: "0 0 8px" }}>{title}</h2>
+        <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 600, color: C.text, margin: "0 0 8px" }}>{title}</h2>
         <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: "0 0 8px" }}>{blurb}</p>
         <p style={{ fontSize: 14.5, color: C.text, fontWeight: 600, margin: "0 0 20px" }}>
           Included in the {FEATURE_PLANS[feature] || "Growth"} plan.
@@ -8576,7 +8576,7 @@ async function triskopeSubmit(e){
       return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
           <Card style={{ maxWidth: 460, textAlign: "center", padding: 36 }}>
-            <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500, color: C.text, margin: "0 0 10px" }}>Account paused</h2>
+            <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 600, color: C.text, margin: "0 0 10px" }}>Account paused</h2>
             <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>
               This workspace is temporarily paused. Your leads and website content are
               safe and nothing has been deleted. Please contact {BRAND.name} at
@@ -8702,7 +8702,7 @@ async function triskopeSubmit(e){
           <TriskopeLogo size={40} />
           {state === "sent" ? (
             <>
-              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "18px 0 8px" }}>Fresh link sent</h1>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 600, color: C.text, margin: "18px 0 8px" }}>Fresh link sent</h1>
               <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>
                 Check your inbox — the new link will let you set your password and
                 get right in. (Look in spam if it's not there in a minute.)
@@ -8710,7 +8710,7 @@ async function triskopeSubmit(e){
             </>
           ) : (
             <>
-              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "18px 0 8px" }}>That link has expired</h1>
+              <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 600, color: C.text, margin: "18px 0 8px" }}>That link has expired</h1>
               <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: "0 0 20px" }}>
                 No problem — links expire for your security. Enter your email and
                 we'll send a fresh one right now.
@@ -8795,7 +8795,7 @@ async function triskopeSubmit(e){
         <div style={{ width: "100%", maxWidth: 420, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
             <TriskopeLogo size={44} />
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "16px 0 4px" }}>Welcome to {BRAND.name}</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 600, color: C.text, margin: "16px 0 4px" }}>Welcome to {BRAND.name}</h1>
             <p style={{ fontSize: 14, color: C.textMuted, textAlign: "center", margin: 0 }}>Set a password to finish setting up your account. You'll use it to sign in from now on.</p>
           </div>
           <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim, marginBottom: 6 }}>New password</label>
@@ -8902,7 +8902,7 @@ async function triskopeSubmit(e){
                 {BRAND.wordmarkParts[0]}&nbsp;<span style={{ color: C.gold }}>{BRAND.wordmarkParts[1]}</span>
               </span>
             ) : (
-              <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 500, color: C.textInv, letterSpacing: "0.06em" }}>{BRAND.wordmark}</span>
+              <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 600, color: C.textInv, letterSpacing: "0.06em" }}>{BRAND.wordmark}</span>
             )}
           </div>
           <button onClick={() => { setView("inbox"); setSidebarOpen(false); }} aria-label="Notifications" style={{
@@ -8947,7 +8947,7 @@ async function triskopeSubmit(e){
                 {BRAND.wordmarkParts[0]}&nbsp;<span style={{ color: C.gold }}>{BRAND.wordmarkParts[1]}</span>
               </div>
             ) : (
-              <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 500, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>{BRAND.wordmark}</div>
+              <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 600, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>{BRAND.wordmark}</div>
             )}
             <div style={{ fontSize: 9.5, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>{BRAND.tagline}</div>
           </div>
