@@ -1608,6 +1608,16 @@ export default function App() {
   // Browser history sync: each view change becomes a history entry (#hash),
   // so Back/Forward move between screens instead of leaving the app.
   useEffect(() => { document.title = BRAND.title; }, []);
+  // Returning from Stripe checkout: acknowledge and clean the URL. The
+  // webhook updates plan/billing server-side (usually within seconds).
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const b = p.get("billing");
+    if (!b) return;
+    if (b === "success") setToast({ message: "Payment received — your plan is updating now. Welcome aboard!", kind: "success" });
+    if (b === "cancelled") setToast({ message: "Checkout cancelled — no charge was made.", kind: "info" });
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     // Never touch auth fragments (invite/recovery tokens, error codes) —
@@ -1782,7 +1792,7 @@ export default function App() {
       const roleByOrg = Object.fromEntries(mems.map(m => [m.org_id, m.role]));
       const { data: orgRows } = await supabase
         .from("organizations")
-        .select("id, name, slug, site_config, features, custom_domain, plan, billing_status")
+        .select("id, name, slug, site_config, features, custom_domain, plan, billing_status, stripe_customer_id")
         .in("id", mems.map(m => m.org_id));
       if (!orgRows || orgRows.length === 0) return;
       const list = orgRows
@@ -5493,27 +5503,108 @@ export default function App() {
   );
 
   // ----- PLANS -----
-  const PlansView = () => (
-    <div>
-      <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Subscription Plans</h1>
-      <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 24px" }}>Tiered pricing for real estate agents</p>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16 }}>
-        {PLANS.map(p => (
-          <Card key={p.name} style={{ borderColor: p.name === "Pro" ? C.blue : C.border, borderWidth: p.name === "Pro" ? 2 : 1, position: "relative" }}>
-            {p.name === "Pro" && <Badge color={C.blue}>Most Popular</Badge>}
-            <h3 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: "8px 0 4px" }}>{p.name}</h3>
-            <div style={{ fontSize: 32, fontWeight: 700, color: C.text }}>${p.price}<span style={{ fontSize: 14, color: C.textDim, fontWeight: 400 }}>/mo</span></div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 16 }}>{p.agents} agents on this plan</div>
-            {p.features.map(f => (
-              <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13, color: C.text }}>
-                <Check size={14} color={C.teal} /> {f}
-              </div>
-            ))}
+  const PlansView = () => {
+    const [busy, setBusy] = useState(null); // plan key being processed
+    const isOwner = org?.role === "owner";
+    const TIERS = [
+      { key: "starter", name: "Starter", price: 49, blurb: "The essentials to run your pipeline.",
+        features: ["Managed agent website + lead capture", "Full CRM: leads, pipeline, tasks", "Email nurture sequences", "Home valuation funnel", "IDX search + registration gate"] },
+      { key: "pro", name: "Pro", price: 99, blurb: "Everything in Starter, plus the local-SEO engine.",
+        features: ["Everything in Starter", "Community Pages (managed service)", "Market Reports", "Vanity community URLs for signage"] },
+      { key: "enterprise", name: "Enterprise", price: 199, blurb: "The full platform, including AI.",
+        features: ["Everything in Pro", "AI Assistant: lead scoring + drafted follow-ups", "Priority support"] },
+    ];
+
+    const checkout = async (planKey) => {
+      setBusy(planKey);
+      const { data, error } = await supabase.functions.invoke("stripe-checkout", { body: { org_id: org.id, plan: planKey } });
+      setBusy(null);
+      if (error || data?.error) {
+        let msg = data?.error || error?.message || "Checkout failed";
+        if (error?.context?.json) { try { const j = await error.context.json(); if (j?.error) msg = j.error; } catch { /* ignore */ } }
+        setToast({ message: msg, kind: "error" });
+        return;
+      }
+      if (data?.url) window.location.href = data.url;
+    };
+
+    const openPortal = async () => {
+      setBusy("portal");
+      const { data, error } = await supabase.functions.invoke("stripe-portal", { body: { org_id: org.id } });
+      setBusy(null);
+      if (error || data?.error) {
+        let msg = data?.error || error?.message || "Could not open billing portal";
+        if (error?.context?.json) { try { const j = await error.context.json(); if (j?.error) msg = j.error; } catch { /* ignore */ } }
+        setToast({ message: msg, kind: "error" });
+        return;
+      }
+      if (data?.url) window.location.href = data.url;
+    };
+
+    return (
+      <div>
+        <div style={pageHeader(isMobile)}>
+          <div>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Plan &amp; Billing</h1>
+            <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
+              {org?.name} is on the <strong style={{ color: C.text, textTransform: "capitalize" }}>{org?.plan || "starter"}</strong> plan.
+            </p>
+          </div>
+          {isOwner && org?.stripe_customer_id && (
+            <button onClick={openPortal} disabled={busy === "portal"} style={{ ...btnPrimary(), opacity: busy === "portal" ? 0.6 : 1 }}>
+              {busy === "portal" ? "Opening…" : "Manage billing"}
+            </button>
+          )}
+        </div>
+
+        {org?.billing_status === "past_due" && (
+          <Card style={{ marginBottom: 16, borderColor: C.red }}>
+            <p style={{ color: C.red, fontSize: 14, margin: 0, fontWeight: 600 }}>
+              Your last payment didn't go through. Update your card via Manage billing to avoid interruption.
+            </p>
           </Card>
-        ))}
+        )}
+        {!isOwner && (
+          <Card style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13.5, color: C.textMuted, margin: 0 }}>Plan changes are handled by your workspace owner.</p>
+          </Card>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16 }}>
+          {TIERS.map(t => {
+            const current = (org?.plan || "starter") === t.key;
+            return (
+              <Card key={t.key} style={{ borderColor: current ? C.teal : t.key === "pro" ? C.gold : C.border, borderWidth: current || t.key === "pro" ? 2 : 1, position: "relative", display: "flex", flexDirection: "column" }}>
+                {t.key === "pro" && !current && <Badge color={C.gold}>Most Popular</Badge>}
+                {current && <Badge color={C.teal}>Current plan</Badge>}
+                <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: "8px 0 2px" }}>{t.name}</h3>
+                <div style={{ fontFamily: SERIF_FONT, fontSize: 34, fontWeight: 600, color: C.text }}>${t.price}<span style={{ fontSize: 14, color: C.textDim, fontWeight: 400, fontFamily: "inherit" }}>/mo</span></div>
+                <p style={{ fontSize: 12.5, color: C.textMuted, margin: "4px 0 14px" }}>{t.blurb}</p>
+                <div style={{ flex: 1 }}>
+                  {t.features.map(f => (
+                    <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8, fontSize: 13, color: C.text }}>
+                      <Check size={14} color={C.teal} style={{ flexShrink: 0, marginTop: 2 }} /> {f}
+                    </div>
+                  ))}
+                </div>
+                {isOwner && !current && (
+                  <button onClick={() => checkout(t.key)} disabled={!!busy} style={{ ...btnPrimary(), justifyContent: "center", marginTop: 14, opacity: busy ? 0.6 : 1 }}>
+                    {busy === t.key ? "Opening checkout…" : `Choose ${t.name}`}
+                  </button>
+                )}
+                {current && (
+                  <div style={{ textAlign: "center", marginTop: 14, fontSize: 12.5, color: C.textDim, fontWeight: 600, padding: "10px 0" }}>Your plan</div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+        <p style={{ fontSize: 12, color: C.textDim, marginTop: 16 }}>
+          Secure checkout by Stripe. Cancel anytime — cancellation takes effect at the end of the paid month per our cancellation policy.
+        </p>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ----- INBOX -----
   const InboxView = () => {
