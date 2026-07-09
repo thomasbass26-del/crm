@@ -253,9 +253,9 @@ const REVENUE = [
 const PLAN_LABELS = { starter: "Essential", pro: "Signature", enterprise: "Enterprise" };
 
 const PLANS = [
-  { name: "Essential", price: 49, agents: 12, features: ["CRM + Lead Management", "3 Market Reports", "2 Community Pages", "Basic AI Scoring"] },
-  { name: "Signature", price: 99, agents: 28, features: ["Everything in Essential", "Unlimited Market Reports", "10 Community Pages", "AI Content Generation", "Drip Campaigns"] },
-  { name: "Enterprise", price: 199, agents: 8, features: ["Everything in Signature", "Unlimited Everything", "Predictive Analytics", "Custom Branding", "API Access"] },
+  { name: "Essential", price: 349, agents: 12, features: ["CRM + Lead Management", "3 Market Reports", "2 Community Pages", "Basic AI Scoring"] },
+  { name: "Signature", price: 699, agents: 28, features: ["Everything in Essential", "Unlimited Market Reports", "10 Community Pages", "AI Content Generation", "Drip Campaigns"] },
+  { name: "Enterprise", price: null, agents: 8, features: ["Everything in Signature", "Unlimited Everything", "Predictive Analytics", "Custom Branding", "API Access"] },
 ];
 
 // Pipeline stages — used by the Kanban view
@@ -5510,11 +5510,11 @@ export default function App() {
     const [busy, setBusy] = useState(null); // plan key being processed
     const isOwner = org?.role === "owner";
     const TIERS = [
-      { key: "starter", name: "Essential", price: 49, blurb: "The essentials to run your pipeline.",
+      { key: "starter", name: "Essential", price: 349, blurb: "The essentials to run your pipeline.",
         features: ["Managed agent website + lead capture", "Full CRM: leads, pipeline, tasks", "Email nurture sequences", "Home valuation funnel", "IDX search + registration gate"] },
-      { key: "pro", name: "Signature", price: 99, blurb: "Everything in Essential, plus the local-SEO engine.",
+      { key: "pro", name: "Signature", price: 699, blurb: "Everything in Essential, plus the local-SEO engine.",
         features: ["Everything in Essential", "Community Pages (managed service)", "Market Reports", "Vanity community URLs for signage"] },
-      { key: "enterprise", name: "Enterprise", price: 199, blurb: "The full platform, including AI.",
+      { key: "enterprise", name: "Enterprise", price: null, blurb: "The full platform, including AI — priced for your operation.",
         features: ["Everything in Signature", "AI Assistant: lead scoring + drafted follow-ups", "Priority support"] },
     ];
 
@@ -5581,7 +5581,7 @@ export default function App() {
                 {t.key === "pro" && !current && <Badge color={C.gold}>Most Popular</Badge>}
                 {current && <Badge color={C.teal}>Current plan</Badge>}
                 <h3 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: "8px 0 2px" }}>{t.name}</h3>
-                <div style={{ fontFamily: SERIF_FONT, fontSize: 34, fontWeight: 600, color: C.text }}>${t.price}<span style={{ fontSize: 14, color: C.textDim, fontWeight: 400, fontFamily: "inherit" }}>/mo</span></div>
+                <div style={{ fontFamily: SERIF_FONT, fontSize: 34, fontWeight: 600, color: C.text }}>{t.price != null ? <>${t.price}<span style={{ fontSize: 14, color: C.textDim, fontWeight: 400, fontFamily: "inherit" }}>/mo</span></> : "Custom"}</div>
                 <p style={{ fontSize: 12.5, color: C.textMuted, margin: "4px 0 14px" }}>{t.blurb}</p>
                 <div style={{ flex: 1 }}>
                   {t.features.map(f => (
@@ -5590,10 +5590,15 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                {isOwner && !current && (
+                {isOwner && !current && t.price != null && (
                   <button onClick={() => checkout(t.key)} disabled={!!busy} style={{ ...btnPrimary(), justifyContent: "center", marginTop: 14, opacity: busy ? 0.6 : 1 }}>
                     {busy === t.key ? "Opening checkout…" : `Choose ${t.name}`}
                   </button>
+                )}
+                {isOwner && !current && t.price == null && (
+                  <a href={`mailto:${BRAND.supportEmail}?subject=Enterprise plan for ${org?.name || "my workspace"}`} style={{ ...btnPrimary(), justifyContent: "center", marginTop: 14, textDecoration: "none" }}>
+                    Contact us
+                  </a>
                 )}
                 {current && (
                   <div style={{ textAlign: "center", marginTop: 14, fontSize: 12.5, color: C.textDim, fontWeight: 600, padding: "10px 0" }}>Your plan</div>

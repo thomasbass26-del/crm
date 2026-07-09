@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   const orgId = String(body.org_id ?? "").trim();
   const plan = String(body.plan ?? "").trim();
+  if (plan === "enterprise") return json({ error: "Enterprise is custom-priced — contact us and we'll set up your subscription." }, 400);
   const priceId = PRICES[plan];
   if (!orgId || !priceId) return json({ error: "org_id and a valid plan are required" }, 400);
 
