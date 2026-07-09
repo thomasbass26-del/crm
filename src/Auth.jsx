@@ -16,9 +16,11 @@ const C = {
 const TriskopeLogo = ({ size = 64 }) => {
   if (BRAND.key === "marketedge") {
     return (
-      <svg width={size} height={size} viewBox="0 0 40 40">
-        <rect x="1.5" y="1.5" width="37" height="37" rx="7" fill="none" stroke={C.teal} strokeWidth="1.4" />
-        <text x="20" y="26.5" textAnchor="middle" fontFamily="Georgia, serif" fontSize="17" fontWeight="600" fill={C.teal}>ME</text>
+      <svg width={size} height={size} viewBox="0 0 100 100">
+        <path d="M14 90 L14 12 L52 52 L88 14 L88 34" fill="none" stroke="#c6a15b" strokeWidth="11" strokeLinejoin="miter" />
+        <rect x="57" y="46" width="31" height="10" fill="#f4f0e6" />
+        <rect x="57" y="62" width="31" height="10" fill="#f4f0e6" />
+        <rect x="57" y="78" width="31" height="10" fill="#f4f0e6" />
       </svg>
     );
   }
@@ -95,7 +97,9 @@ export default function Auth() {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 24 }}>
           <TriskopeLogo size={64} />
           <div style={{ fontSize: 26, fontWeight: 700, color: C.text, letterSpacing: "0.05em", marginTop: 12 }}>
-            {BRAND.wordmark}
+            {BRAND.wordmarkParts
+              ? <>{BRAND.wordmarkParts[0]}&nbsp;<span style={{ color: "#c6a15b" }}>{BRAND.wordmarkParts[1]}</span></>
+              : BRAND.wordmark}
           </div>
           <div style={{ fontSize: 12, color: C.textDim, letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 4 }}>
             see everything together

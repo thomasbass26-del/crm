@@ -20,11 +20,22 @@ export const BRANDS = {
     key: "marketedge",
     name: "The Market Edge",
     wordmark: "market edge",
-    tagline: "the market edge for agents",
+    // Two-tone lockup: MARKET in ink/white, EDGE in gold (per brand sheet).
+    wordmarkParts: ["MARKET", "EDGE"],
+    tagline: "strategy. leads. results.",
     // TODO: swap to a Market Edge mailbox once one exists — replies
     // must land somewhere monitored.
     supportEmail: "team@triskope.ai",
     title: "The Market Edge — real estate CRM",
+    // Palette overrides applied onto the app theme at load: deep navy
+    // surfaces + champagne gold, matching the brand sheet.
+    colors: {
+      bgDark:   "#0c1524",
+      bgDark2:  "#182740",
+      gold:     "#c6a15b",
+      goldSoft: "#dcc08a",
+      textInv:  "#f4f0e6",
+    },
   },
 };
 

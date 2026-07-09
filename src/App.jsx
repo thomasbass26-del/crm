@@ -54,9 +54,12 @@ const C = {
   textDim:   "#9a9a95",
 
   // Text on dark bg
-  textInv:      "#f5f1e6",
-  textInvMuted: "#9c8f7a",
+  textInv:      "#f5f1e6",  textInvMuted: "#9c8f7a",
 };
+
+// Brand skin: Market Edge overrides land on the shared theme at load
+// (deep navy surfaces, champagne gold) — one app, two suits.
+if (BRAND.colors) Object.assign(C, BRAND.colors);
 
 // Editorial serif used for major page titles and editorial numbers
 const SERIF_FONT = `"Cormorant Garamond", "Cormorant", Georgia, "Hoefler Text", serif`;
@@ -78,17 +81,21 @@ function timeAgo(input) {
 }
 
 const TriskopeLogo = ({ size = 36, light = true }) => {
-  // Brand-aware mark: Triskope = three overlapping circles; Market Edge =
-  // serif "ME" monogram tile. `light=true` means the mark sits on a DARK
-  // surface and uses bright colors; light=false for light surfaces.
+  // Brand-aware mark. Market Edge: gold M with the three-bar E nested in
+  // its right notch (per brand sheet). `light=true` = mark sits on a DARK
+  // surface (bars render light); light=false = light surface (bars ink).
   if (BRAND.key === "marketedge") {
+    const gold = light ? "#c6a15b" : "#a8833f";
+    const bar = light ? "#f4f0e6" : "#0c1524";
     return (
-      <svg width={size} height={size} viewBox="0 0 40 40">
-        <rect x="1.5" y="1.5" width="37" height="37" rx="7"
-          fill="none" stroke={light ? C.gold : C.teal} strokeWidth="1.6" />
-        <text x="20" y="26.5" textAnchor="middle"
-          fontFamily="Georgia, 'Times New Roman', serif" fontSize="17" fontWeight="600"
-          fill={light ? C.gold : C.teal} letterSpacing="0.5">ME</text>
+      <svg width={size} height={size} viewBox="0 0 100 100">
+        {/* M — left leg, valley, right peak (right leg implied by the E bars) */}
+        <path d="M14 90 L14 12 L52 52 L88 14 L88 34"
+          fill="none" stroke={gold} strokeWidth="11" strokeLinejoin="miter" strokeMiterlimit="4" />
+        {/* E — three bars tucked in the M's right notch */}
+        <rect x="57" y="46" width="31" height="10" fill={bar} />
+        <rect x="57" y="62" width="31" height="10" fill={bar} />
+        <rect x="57" y="78" width="31" height="10" fill={bar} />
       </svg>
     );
   }
@@ -8881,7 +8888,13 @@ async function triskopeSubmit(e){
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <TriskopeLogo size={28} light />
-            <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 500, color: C.textInv, letterSpacing: "0.06em" }}>{BRAND.wordmark}</span>
+            {BRAND.wordmarkParts ? (
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.textInv, letterSpacing: "0.14em" }}>
+                {BRAND.wordmarkParts[0]}&nbsp;<span style={{ color: C.gold }}>{BRAND.wordmarkParts[1]}</span>
+              </span>
+            ) : (
+              <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 500, color: C.textInv, letterSpacing: "0.06em" }}>{BRAND.wordmark}</span>
+            )}
           </div>
           <button onClick={() => { setView("inbox"); setSidebarOpen(false); }} aria-label="Notifications" style={{
             marginLeft: "auto", position: "relative", background: "none", border: "none",
@@ -8920,7 +8933,13 @@ async function triskopeSubmit(e){
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 36 }}>
           <TriskopeLogo size={38} light />
           <div>
-            <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 500, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>{BRAND.wordmark}</div>
+            {BRAND.wordmarkParts ? (
+              <div style={{ fontSize: 16.5, fontWeight: 600, color: C.textInv, letterSpacing: "0.16em", lineHeight: 1 }}>
+                {BRAND.wordmarkParts[0]}&nbsp;<span style={{ color: C.gold }}>{BRAND.wordmarkParts[1]}</span>
+              </div>
+            ) : (
+              <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 500, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>{BRAND.wordmark}</div>
+            )}
             <div style={{ fontSize: 8, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>{BRAND.tagline}</div>
           </div>
         </div>
