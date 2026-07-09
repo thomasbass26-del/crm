@@ -77,31 +77,37 @@ Deno.serve(async (req) => {
   const { data: u } = await admin.auth.admin.getUserById(uid);
   const email = u?.user?.email ?? undefined;
 
-  // One Stripe Customer per org, reused forever.
-  let customerId = org.stripe_customer_id;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email,
-      name: org.name ?? org.slug,
-      metadata: { org_id: org.id, org_slug: org.slug ?? "" },
-    });
-    customerId = customer.id;
-    await admin.from("organizations").update({ stripe_customer_id: customerId }).eq("id", org.id);
-  }
-
   const origin = req.headers.get("origin") ?? "";
   const site = OK_ORIGINS.has(origin) ? origin : "https://app.triskope.ai";
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    allow_promotion_codes: true,
-    subscription_data: { metadata: { org_id: org.id, plan } },
-    metadata: { org_id: org.id, plan },
-    success_url: `${site}/?billing=success#billing`,
-    cancel_url: `${site}/?billing=cancelled#billing`,
-  });
+  try {
+    // One Stripe Customer per org, reused forever.
+    let customerId = org.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email,
+        name: org.name ?? org.slug,
+        metadata: { org_id: org.id, org_slug: org.slug ?? "" },
+      });
+      customerId = customer.id;
+      await admin.from("organizations").update({ stripe_customer_id: customerId }).eq("id", org.id);
+    }
 
-  return json({ url: session.url });
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
+      subscription_data: { metadata: { org_id: org.id, plan } },
+      metadata: { org_id: org.id, plan },
+      success_url: `${site}/?billing=success#billing`,
+      cancel_url: `${site}/?billing=cancelled#billing`,
+    });
+
+    return json({ url: session.url });
+  } catch (e) {
+    const msg = (e as { message?: string })?.message ?? "Stripe error";
+    console.error("stripe-checkout failed:", msg);
+    return json({ error: `Stripe: ${msg}` }, 502);
+  }
 });
