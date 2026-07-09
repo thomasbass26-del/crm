@@ -1787,7 +1787,11 @@ export default function App() {
     let cancelled = false;
     // Resolve the signed-in user's organization (id, name, slug) for the Connect-site screen
     (async () => {
-      const { data: mems } = await supabase.from("org_members").select("org_id, role");
+      // OWN memberships only — RLS lets members see ALL rows in their orgs
+      // (needed for Team), so without this filter another member's row can
+      // clobber our role in roleByOrg (e.g. an agent row hiding owner nav).
+      const { data: mems } = await supabase.from("org_members")
+        .select("org_id, role").eq("user_id", session.user.id);
       if (!mems || mems.length === 0) return;
       // Platform admin detection (self-row read; empty for everyone else)
       supabase.from("platform_admins").select("user_id").maybeSingle()
