@@ -1344,7 +1344,7 @@ function LeadScoreDoc({ data }) {
             </svg>
             <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: "#1a1a2e", lineHeight: 1 }}>{data.score}</div>
-              <div style={{ fontSize: 9, color: "#55557a", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginTop: 2 }}>SCORE</div>
+              <div style={{ fontSize: 9.5, color: "#55557a", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginTop: 2 }}>SCORE</div>
             </div>
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
@@ -1367,7 +1367,7 @@ function LeadScoreDoc({ data }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 24 }}>
           {data.quickFacts.map(f => (
             <div key={f.label} style={{ padding: 10, borderRadius: 8, background: "#f6f7fb", border: "1px solid #e2e3ec" }}>
-              <div style={{ fontSize: 9, color: "#55557a", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>{f.label}</div>
+              <div style={{ fontSize: 9.5, color: "#55557a", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>{f.label}</div>
               <div style={{ fontSize: 13, color: "#1a1a2e", fontWeight: 700, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.value}</div>
             </div>
           ))}
@@ -4322,15 +4322,15 @@ export default function App() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             <div>
-              <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Median</div>
+              <div style={{ fontSize: 9.5, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Median</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginTop: 2 }}>{c.avgPrice}</div>
             </div>
             <div>
-              <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Views</div>
+              <div style={{ fontSize: 9.5, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Views</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginTop: 2 }}>{c.views.toLocaleString()}</div>
             </div>
             <div>
-              <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Leads</div>
+              <div style={{ fontSize: 9.5, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Leads</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.teal, marginTop: 2 }}>{c.leads}</div>
             </div>
           </div>
@@ -5349,7 +5349,7 @@ export default function App() {
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 13, color: C.gold, fontWeight: 700 }}>{c.leads}</div>
-                      <div style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>Leads</div>
+                      <div style={{ fontSize: 9.5, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>Leads</div>
                     </div>
                   </div>
                 ))}
@@ -5850,7 +5850,7 @@ export default function App() {
               position: "absolute", top: 14, left: 14,
               padding: "4px 10px", borderRadius: 3,
               background: C.gold, color: "#fff",
-              fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase",
+              fontSize: 9.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase",
             }}>Just Listed</span>
           )}
           {/* Top-right: pending/sold */}
@@ -5859,7 +5859,7 @@ export default function App() {
               position: "absolute", top: 14, right: 14,
               padding: "4px 10px", borderRadius: 3,
               background: "rgba(26,26,34,0.85)", color: "#fff",
-              fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase",
+              fontSize: 9.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase",
             }}>Under Contract</span>
           )}
           {L.status === "sold" && (
@@ -5867,7 +5867,7 @@ export default function App() {
               position: "absolute", top: 14, right: 14,
               padding: "4px 10px", borderRadius: 3,
               background: "rgba(26,26,34,0.85)", color: "#fff",
-              fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase",
+              fontSize: 9.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase",
             }}>Sold</span>
           )}
           {/* Bottom-left price overlay */}
@@ -5883,7 +5883,7 @@ export default function App() {
               }}>{formatPrice(L.price)}</div>
             </div>
             <div style={{
-              fontSize: 9, color: "rgba(255,255,255,0.85)",
+              fontSize: 9.5, color: "rgba(255,255,255,0.85)",
               letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600,
               textShadow: "0 2px 4px rgba(0,0,0,0.5)",
             }}>
@@ -5895,7 +5895,7 @@ export default function App() {
         {/* Body */}
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
           <div>
-            <div style={{ fontSize: 9, color: C.gold, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>
+            <div style={{ fontSize: 9.5, color: C.gold, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>
               {L.community}
             </div>
             <div style={{ fontSize: 15, color: C.text, fontWeight: 600, lineHeight: 1.3, marginBottom: 4 }}>
@@ -5911,15 +5911,15 @@ export default function App() {
           }}>
             <div style={{ textAlign: "center", flex: 1, borderRight: `1px solid ${C.border}`, padding: "0 4px" }}>
               <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 500, color: C.text, lineHeight: 1 }}>{L.beds}</div>
-              <div style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Bed</div>
+              <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Bed</div>
             </div>
             <div style={{ textAlign: "center", flex: 1, borderRight: `1px solid ${C.border}`, padding: "0 4px" }}>
               <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 500, color: C.text, lineHeight: 1 }}>{L.baths}</div>
-              <div style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Bath</div>
+              <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Bath</div>
             </div>
             <div style={{ textAlign: "center", flex: 1.4, padding: "0 4px" }}>
               <div style={{ fontFamily: SERIF_FONT, fontSize: 18, fontWeight: 500, color: C.text, lineHeight: 1 }}>{L.sqft.toLocaleString()}</div>
-              <div style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Sqft</div>
+              <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginTop: 4 }}>Sqft</div>
             </div>
           </div>
 
@@ -6228,7 +6228,7 @@ export default function App() {
               }}>Under Contract</span>
             )}
             <div style={{ position: "absolute", left: 24, bottom: 20, color: "#fff" }}>
-              <div style={{ fontSize: 9, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 700, marginBottom: 6 }}>
+              <div style={{ fontSize: 9.5, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 700, marginBottom: 6 }}>
                 {L.community}
               </div>
               <div style={{ fontFamily: SERIF_FONT, fontSize: 36, fontWeight: 500, lineHeight: 1, letterSpacing: "0.01em", textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
@@ -6524,7 +6524,7 @@ export default function App() {
               <div style={{ fontFamily: serif, fontSize: isMobile ? 18 : 22, fontWeight: 500, color: LUX.ink, letterSpacing: "0.04em" }}>
                 {agent.name.toUpperCase()}
               </div>
-              <div style={{ fontSize: 9, color: LUX.mute, letterSpacing: "0.24em", textTransform: "uppercase", marginTop: 2 }}>
+              <div style={{ fontSize: 9.5, color: LUX.mute, letterSpacing: "0.24em", textTransform: "uppercase", marginTop: 2 }}>
                 {community.area} · Real Estate
               </div>
             </div>
@@ -6618,7 +6618,7 @@ export default function App() {
                   borderRight: (!isMobile && i < arr.length - 1) ? `1px solid ${LUX.hairline}` : "none",
                   borderBottom: (isMobile && i < arr.length - 2) ? `1px solid ${LUX.hairline}` : "none",
                 }}>
-                  <div style={{ fontSize: 9, color: LUX.mute, letterSpacing: "0.24em", textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>
+                  <div style={{ fontSize: 9.5, color: LUX.mute, letterSpacing: "0.24em", textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>
                     {s.label}
                   </div>
                   <div style={{ fontFamily: serif, fontSize: isMobile ? 30 : 40, fontWeight: 400, color: LUX.ink, lineHeight: 1 }}>
@@ -6668,7 +6668,7 @@ export default function App() {
                           position: "absolute", top: 16, left: 16,
                           padding: "5px 12px",
                           background: LUX.gold, color: "#fff",
-                          fontSize: 9, fontWeight: 700,
+                          fontSize: 9.5, fontWeight: 700,
                           letterSpacing: "0.2em", textTransform: "uppercase",
                         }}>New</span>
                       )}
@@ -8841,8 +8841,11 @@ async function triskopeSubmit(e){
         @keyframes cardLand { 0% { opacity: 0; transform: translateY(-8px) scale(0.96); } 60% { transform: translateY(2px) scale(1.01); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
         .tk-cursor { display: inline-block; width: 8px; height: 14px; background: ${C.teal}; vertical-align: middle; margin-left: 2px; animation: tk-pulse 0.9s ease-in-out infinite; }
         .tk-view { animation: tk-fade 0.25s ease; }
-        .tk-rise { animation: tk-rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-        .tk-stagger > * { animation: tk-rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+        /* fill "backwards" (not "both"): elements start hidden for the stagger,
+           but the transform RELEASES on completion — a lingering transform pins
+           text to a rasterized GPU layer and everything reads slightly blurry. */
+        .tk-rise { animation: tk-rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+        .tk-stagger > * { animation: tk-rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
         .tk-stagger > *:nth-child(1) { animation-delay: 0ms; }
         .tk-stagger > *:nth-child(2) { animation-delay: 60ms; }
         .tk-stagger > *:nth-child(3) { animation-delay: 120ms; }
@@ -8946,7 +8949,7 @@ async function triskopeSubmit(e){
             ) : (
               <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 500, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>{BRAND.wordmark}</div>
             )}
-            <div style={{ fontSize: 8, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>{BRAND.tagline}</div>
+            <div style={{ fontSize: 9.5, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>{BRAND.tagline}</div>
           </div>
         </div>
 
@@ -9005,7 +9008,7 @@ async function triskopeSubmit(e){
                   <span style={{
                     padding: "1px 7px", borderRadius: 9999,
                     background: "rgba(194,167,110,0.16)", color: C.goldSoft,
-                    fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
+                    fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em",
                     textTransform: "uppercase",
                   }}>Pro</span>
                 )}
@@ -9021,7 +9024,7 @@ async function triskopeSubmit(e){
           {/* Workspace switcher */}
           {orgs.length > 1 ? (
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 9, color: C.textInvMuted, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600, marginBottom: 6 }}>Workspace</div>
+              <div style={{ fontSize: 9.5, color: C.textInvMuted, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600, marginBottom: 6 }}>Workspace</div>
               <select
                 value={org?.id ?? ""}
                 onChange={(e) => switchOrg(e.target.value)}
@@ -9038,7 +9041,7 @@ async function triskopeSubmit(e){
             </div>
           ) : org ? (
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 9, color: C.textInvMuted, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600, marginBottom: 4 }}>Workspace</div>
+              <div style={{ fontSize: 9.5, color: C.textInvMuted, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600, marginBottom: 4 }}>Workspace</div>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.textInv, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{org.name}</div>
             </div>
           ) : null}
@@ -9053,7 +9056,7 @@ async function triskopeSubmit(e){
               <div style={{ fontSize: 12, fontWeight: 600, color: C.textInv, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {profile?.display_name || (session?.user?.email || "").split("@")[0]}
               </div>
-              <div style={{ fontSize: 9, color: C.goldSoft, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600 }}>
+              <div style={{ fontSize: 9.5, color: C.goldSoft, textTransform: "uppercase", letterSpacing: "0.16em", fontWeight: 600 }}>
                 {org?.role || profile?.role || "agent"}
               </div>
             </div>
@@ -9073,7 +9076,7 @@ async function triskopeSubmit(e){
               <span>Powered by <span style={{ color: C.goldSoft, fontWeight: 600 }}>Triskope</span></span>
             </a>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9.5, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase" }}>
               <TriskopeCircles size={18} light />
               <span>est. 2026 · grand strand</span>
             </div>
