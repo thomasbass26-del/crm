@@ -12,7 +12,7 @@ import {
   Layers, GripVertical, ArrowUpDown, ChevronDown, CalendarPlus, Trash2, CheckCircle2,
   CalendarDays, Building2, BedDouble, Bath, AlertCircle, CheckCheck, ChevronUp,
   Filter as FilterIcon, Bookmark, Lightbulb, LogOut, Loader2,
-  Send, UserPlus, AtSign, Hash, Bot, Lock
+  Send, UserPlus, AtSign, Hash, Bot, Lock, CreditCard
 } from "lucide-react";
 
 // Luxury palette: cream/ivory canvas, deep charcoal text, muted gold signature.
@@ -2773,6 +2773,7 @@ export default function App() {
     { id: "communities", label: "Communities", icon: Map, feature: "communities" },
     { id: "agents", label: "Agents", icon: Award, ownerOnly: true },
     { id: "team", label: "Team", icon: UserPlus, ownerOnly: true },
+    { id: "billing", label: "Plan & Billing", icon: CreditCard, ownerOnly: true },
     { id: "siteadmin", label: "Site Admin", icon: Wrench, platformOnly: true },
     { id: "assistant", label: "AI Assistant", icon: Bot, feature: "ai_assistant" },
   ];
