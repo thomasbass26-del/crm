@@ -189,6 +189,20 @@ export default function Auth() {
         }}>
           By continuing you agree to {BRAND.name}'s terms and acknowledge our privacy policy.
         </div>
+        {BRAND.key === "marketedge" && (
+          <a href="https://triskope.com" target="_blank" rel="noreferrer" style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+            marginTop: 16, fontSize: 10, color: C.textDim, letterSpacing: "0.16em",
+            textTransform: "uppercase", textDecoration: "none",
+          }}>
+            <svg width={16} height={16} viewBox="0 0 16 16">
+              <circle cx="8" cy="5.5" r="2.6" fill="none" stroke="#5eead4" strokeWidth="1.1" opacity="0.9" />
+              <circle cx="6.3" cy="8.7" r="2.6" fill="none" stroke="#818cf8" strokeWidth="1.1" opacity="0.9" />
+              <circle cx="9.7" cy="8.7" r="2.6" fill="none" stroke="#a78bfa" strokeWidth="1.1" opacity="0.9" />
+            </svg>
+            Powered by Triskope
+          </a>
+        )}
       </div>
     </div>
   );

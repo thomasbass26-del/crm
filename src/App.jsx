@@ -80,6 +80,23 @@ function timeAgo(input) {
   return d.toLocaleDateString();
 }
 
+// Triskope's three-circle mark — always Triskope regardless of brand skin
+// (used for the "Powered by Triskope" platform credit).
+const TriskopeCircles = ({ size = 36, light = true }) => {
+  const r = size * 0.22;
+  const cx = size / 2, cy = size / 2;
+  const t = light ? C.tealBright   : C.teal;
+  const b = light ? C.blueBright   : C.blue;
+  const p = light ? C.purpleBright : C.purple;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cy - r * 0.7} r={r} fill="none" stroke={t} strokeWidth={1.5} opacity={0.95} />
+      <circle cx={cx - r * 0.65} cy={cy + r * 0.45} r={r} fill="none" stroke={b} strokeWidth={1.5} opacity={0.95} />
+      <circle cx={cx + r * 0.65} cy={cy + r * 0.45} r={r} fill="none" stroke={p} strokeWidth={1.5} opacity={0.95} />
+    </svg>
+  );
+};
+
 const TriskopeLogo = ({ size = 36, light = true }) => {
   // Brand-aware mark. Market Edge: gold M with the three-bar E nested in
   // its right notch (per brand sheet). `light=true` = mark sits on a DARK
@@ -99,18 +116,7 @@ const TriskopeLogo = ({ size = 36, light = true }) => {
       </svg>
     );
   }
-  const r = size * 0.22;
-  const cx = size / 2, cy = size / 2;
-  const t = light ? C.tealBright   : C.teal;
-  const b = light ? C.blueBright   : C.blue;
-  const p = light ? C.purpleBright : C.purple;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy - r * 0.7} r={r} fill="none" stroke={t} strokeWidth={1.5} opacity={0.95} />
-      <circle cx={cx - r * 0.65} cy={cy + r * 0.45} r={r} fill="none" stroke={b} strokeWidth={1.5} opacity={0.95} />
-      <circle cx={cx + r * 0.65} cy={cy + r * 0.45} r={r} fill="none" stroke={p} strokeWidth={1.5} opacity={0.95} />
-    </svg>
-  );
+  return <TriskopeCircles size={size} light={light} />;
 };
 
 // ============================================================
@@ -9061,10 +9067,17 @@ async function triskopeSubmit(e){
             </button>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase" }}>
-            <TriskopeLogo size={18} light />
-            <span>est. 2026 · grand strand</span>
-          </div>
+          {BRAND.key === "marketedge" ? (
+            <a href="https://triskope.com" target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9.5, color: C.textInvMuted, letterSpacing: "0.18em", textTransform: "uppercase", textDecoration: "none" }}>
+              <TriskopeCircles size={18} light />
+              <span>Powered by <span style={{ color: C.goldSoft, fontWeight: 600 }}>Triskope</span></span>
+            </a>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+              <TriskopeCircles size={18} light />
+              <span>est. 2026 · grand strand</span>
+            </div>
+          )}
         </div>
       </aside>
 
