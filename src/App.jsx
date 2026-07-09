@@ -124,7 +124,7 @@ const TriskopeLogo = ({ size = 36, light = true }) => {
 // ============================================================
 
 const AGENTS = [
-  { id: 1, name: "Sarah Mitchell",  plan: "Pro",        leads: 47, closings: 12, revenue: 284000, website: "sarahmitchell.triskope.io",  reports: 8,  communities: 5,
+  { id: 1, name: "Sarah Mitchell",  plan: "Signature",      leads: 47, closings: 12, revenue: 284000, website: "sarahmitchell.triskope.io",  reports: 8,  communities: 5,
     email: "sarah@triskope.io",   phone: "(843) 555-0142", address: "1700 Ocean Blvd, Suite 200, Myrtle Beach, SC 29577",
     signupDate: "2025-08-14", license: "SC RE #94821",  brokerage: "Coastal Premier Real Estate",
     paymentMethod: { brand: "Visa",       last4: "4242", expMonth: 8, expYear: 28 },
@@ -136,19 +136,19 @@ const AGENTS = [
     paymentMethod: { brand: "Mastercard", last4: "8814", expMonth: 4, expYear: 27 },
     monthlyCost: 199, status: "active", nextBillingDays: 6,
   },
-  { id: 3, name: "Lisa Chen",       plan: "Starter",    leads: 22, closings: 5,  revenue: 98000,  website: "lisachen.triskope.io",       reports: 3,  communities: 2,
+  { id: 3, name: "Lisa Chen",       plan: "Essential",  leads: 22, closings: 5,  revenue: 98000,  website: "lisachen.triskope.io",       reports: 3,  communities: 2,
     email: "lisa@triskope.io",    phone: "(843) 555-0319", address: "207 Boardwalk Drive, Market Common, Myrtle Beach, SC 29577",
     signupDate: "2025-11-03", license: "SC RE #99417",  brokerage: "Independent",
     paymentMethod: { brand: "Visa",       last4: "1183", expMonth: 11, expYear: 26 },
     monthlyCost: 49,  status: "active", nextBillingDays: 19,
   },
-  { id: 4, name: "Marcus Johnson",  plan: "Pro",        leads: 38, closings: 9,  revenue: 195000, website: "marcusjohnson.triskope.io",  reports: 6,  communities: 4,
+  { id: 4, name: "Marcus Johnson",  plan: "Signature",      leads: 38, closings: 9,  revenue: 195000, website: "marcusjohnson.triskope.io",  reports: 6,  communities: 4,
     email: "marcus@triskope.io",  phone: "(843) 555-0451", address: "415 Cypress Way, Carolina Forest, Myrtle Beach, SC 29579",
     signupDate: "2025-09-09", license: "SC RE #87623",  brokerage: "Grand Strand Properties",
     paymentMethod: { brand: "Amex",       last4: "1006", expMonth: 7,  expYear: 27 },
     monthlyCost: 99,  status: "active", nextBillingDays: 3,
   },
-  { id: 5, name: "Amy Rodriguez",   plan: "Pro",        leads: 15, closings: 2,  revenue: 45000,  website: "amyrodriguez.triskope.io",   reports: 4,  communities: 3,
+  { id: 5, name: "Amy Rodriguez",   plan: "Signature",      leads: 15, closings: 2,  revenue: 45000,  website: "amyrodriguez.triskope.io",   reports: 4,  communities: 3,
     email: "amy@triskope.io",     phone: "(843) 555-0598", address: "92 Plantation Dr, Murrells Inlet, SC 29576",
     signupDate: "2026-02-18", license: "SC RE #102558", brokerage: "Murrells Inlet Realty Group",
     paymentMethod: { brand: "Visa",       last4: "9020", expMonth: 2,  expYear: 28 },
@@ -249,10 +249,13 @@ const REVENUE = [
   { month: "Jan", revenue: 18600 }, { month: "Feb", revenue: 22400 }, { month: "Mar", revenue: 26800 },
 ];
 
+// Display names for the internal plan tiers (DB enum stays starter/pro/enterprise).
+const PLAN_LABELS = { starter: "Essential", pro: "Signature", enterprise: "Enterprise" };
+
 const PLANS = [
-  { name: "Starter", price: 49, agents: 12, features: ["CRM + Lead Management", "3 Market Reports", "2 Community Pages", "Basic AI Scoring"] },
-  { name: "Pro", price: 99, agents: 28, features: ["Everything in Starter", "Unlimited Market Reports", "10 Community Pages", "AI Content Generation", "Drip Campaigns"] },
-  { name: "Enterprise", price: 199, agents: 8, features: ["Everything in Pro", "Unlimited Everything", "Predictive Analytics", "Custom Branding", "API Access"] },
+  { name: "Essential", price: 49, agents: 12, features: ["CRM + Lead Management", "3 Market Reports", "2 Community Pages", "Basic AI Scoring"] },
+  { name: "Signature", price: 99, agents: 28, features: ["Everything in Essential", "Unlimited Market Reports", "10 Community Pages", "AI Content Generation", "Drip Campaigns"] },
+  { name: "Enterprise", price: 199, agents: 8, features: ["Everything in Signature", "Unlimited Everything", "Predictive Analytics", "Custom Branding", "API Access"] },
 ];
 
 // Pipeline stages — used by the Kanban view
@@ -2776,7 +2779,7 @@ export default function App() {
 
   // Paid-feature gating: locked features stay VISIBLE but show an upgrade
   // screen. Platform admins are never locked.
-  const FEATURE_PLANS = { communities: "Pro", market_reports: "Pro", ai_assistant: "Enterprise" };
+  const FEATURE_PLANS = { communities: "Signature", market_reports: "Signature", ai_assistant: "Enterprise" };
   const featureLocked = (f) => !!f && !isPlatformAdmin && !(org?.features?.[f]);
 
   // ----- Shared image upload (site-assets bucket) -----
@@ -4514,10 +4517,10 @@ export default function App() {
             <Card>
               <h3 style={{ ...cardTitle(), marginBottom: 12 }}>Assigned agent</h3>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                <Avatar name={assignedAgent.name} size={48} color={assignedAgent.plan === "Enterprise" ? C.purple : assignedAgent.plan === "Pro" ? C.blue : C.teal} />
+                <Avatar name={assignedAgent.name} size={48} color={assignedAgent.plan === "Enterprise" ? C.purple : assignedAgent.plan === "Signature" ? C.blue : C.teal} />
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{assignedAgent.name}</div>
-                  <Badge color={assignedAgent.plan === "Enterprise" ? C.purple : assignedAgent.plan === "Pro" ? C.blue : C.teal}>{assignedAgent.plan}</Badge>
+                  <Badge color={assignedAgent.plan === "Enterprise" ? C.purple : assignedAgent.plan === "Signature" ? C.blue : C.teal}>{assignedAgent.plan}</Badge>
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, fontSize: 12 }}>
@@ -5013,7 +5016,7 @@ export default function App() {
 
   // ----- AGENTS -----
   // Helpers used by both agent grid + detail
-  const planColor = (plan) => plan === "Enterprise" ? C.purple : plan === "Pro" ? C.blue : C.teal;
+  const planColor = (plan) => plan === "Enterprise" ? C.purple : plan === "Signature" ? C.blue : C.teal;
   const accessStatusMeta = (s) => {
     switch (s) {
       case "active":    return { label: "Active",         color: C.green };
@@ -5507,12 +5510,12 @@ export default function App() {
     const [busy, setBusy] = useState(null); // plan key being processed
     const isOwner = org?.role === "owner";
     const TIERS = [
-      { key: "starter", name: "Starter", price: 49, blurb: "The essentials to run your pipeline.",
+      { key: "starter", name: "Essential", price: 49, blurb: "The essentials to run your pipeline.",
         features: ["Managed agent website + lead capture", "Full CRM: leads, pipeline, tasks", "Email nurture sequences", "Home valuation funnel", "IDX search + registration gate"] },
-      { key: "pro", name: "Pro", price: 99, blurb: "Everything in Starter, plus the local-SEO engine.",
-        features: ["Everything in Starter", "Community Pages (managed service)", "Market Reports", "Vanity community URLs for signage"] },
+      { key: "pro", name: "Signature", price: 99, blurb: "Everything in Essential, plus the local-SEO engine.",
+        features: ["Everything in Essential", "Community Pages (managed service)", "Market Reports", "Vanity community URLs for signage"] },
       { key: "enterprise", name: "Enterprise", price: 199, blurb: "The full platform, including AI.",
-        features: ["Everything in Pro", "AI Assistant: lead scoring + drafted follow-ups", "Priority support"] },
+        features: ["Everything in Signature", "AI Assistant: lead scoring + drafted follow-ups", "Priority support"] },
     ];
 
     const checkout = async (planKey) => {
@@ -5547,7 +5550,7 @@ export default function App() {
           <div>
             <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Plan &amp; Billing</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
-              {org?.name} is on the <strong style={{ color: C.text, textTransform: "capitalize" }}>{org?.plan || "starter"}</strong> plan.
+              {org?.name} is on the <strong style={{ color: C.text }}>{PLAN_LABELS[org?.plan] || PLAN_LABELS.starter}</strong> plan.
             </p>
           </div>
           {isOwner && org?.stripe_customer_id && (
@@ -7158,13 +7161,13 @@ export default function App() {
         </div>
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: C.text, margin: 0 }}>AI Assistant</h1>
-          <p style={{ fontSize: 13, color: C.textMuted, margin: "2px 0 0" }}>Available on the Pro and Enterprise plans.</p>
+          <p style={{ fontSize: 13, color: C.textMuted, margin: "2px 0 0" }}>Available on the Signature and Enterprise plans.</p>
         </div>
         <select value={demoPlan} onChange={e => setDemoPlan(e.target.value)} style={{
           ...selectStyle(), minHeight: 32, fontSize: 11, padding: "6px 28px 6px 10px",
         }} title="Demo: switch plan">
-          <option value="starter">Starter (demo)</option>
-          <option value="pro">Pro (demo)</option>
+          <option value="starter">Essential (demo)</option>
+          <option value="pro">Signature (demo)</option>
           <option value="enterprise">Enterprise (demo)</option>
         </select>
       </div>
@@ -7662,7 +7665,7 @@ export default function App() {
                     {s.has_site ? (s.custom_domain || `${s.slug}.triskope.ai`) : "No site yet"}
                   </div>
                   <div style={{ fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
-                    <span style={{ color: C.textDim }}>{s.plan}</span>
+                    <span style={{ color: C.textDim }}>{PLAN_LABELS[s.plan] || s.plan}</span>
                     <span style={{ marginLeft: 8, fontWeight: 700, color: s.billing_status === "active" ? C.teal : s.billing_status === "past_due" ? C.gold : C.red }}>
                       {(s.billing_status || "active").replace("_", " ")}
                     </span>
@@ -7786,7 +7789,7 @@ export default function App() {
                         border: `1px solid ${sel.plan === p ? C.teal : C.border}`,
                         background: sel.plan === p ? C.teal + "18" : "transparent",
                         color: sel.plan === p ? C.teal : C.text,
-                      }}>{p}</button>
+                      }}>{PLAN_LABELS[p] || p}</button>
                     ))}
                   </div>
                   <label style={lbl}>Billing status</label>
@@ -8648,7 +8651,7 @@ async function triskopeSubmit(e){
         <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 600, color: C.text, margin: "0 0 8px" }}>{title}</h2>
         <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: "0 0 8px" }}>{blurb}</p>
         <p style={{ fontSize: 14.5, color: C.text, fontWeight: 600, margin: "0 0 20px" }}>
-          Included in the {FEATURE_PLANS[feature] || "Growth"} plan.
+          Included in the {FEATURE_PLANS[feature] || "Signature"} plan.
         </p>
         <a href={`mailto:${BRAND.supportEmail}?subject=Upgrade my ${BRAND.name} plan (${org?.name || ""})`} style={{ ...btnPrimary(), textDecoration: "none", display: "inline-flex" }}>
           Upgrade my plan
@@ -9101,7 +9104,7 @@ async function triskopeSubmit(e){
                     background: "rgba(194,167,110,0.16)", color: C.goldSoft,
                     fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                  }}>Pro</span>
+                  }}>Enterprise</span>
                 )}
                 {item.pro && hasAssistantAccess && demoPlan === "enterprise" && (
                   <span style={{ width: 6, height: 6, borderRadius: 3, background: C.goldSoft }} />
