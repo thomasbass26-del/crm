@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase";
+import { BRAND } from "./brand";
 import { Mail, Lock, User, Loader2, AlertCircle } from "lucide-react";
 
 const C = {
@@ -13,6 +14,14 @@ const C = {
 };
 
 const TriskopeLogo = ({ size = 64 }) => {
+  if (BRAND.key === "marketedge") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 40 40">
+        <rect x="1.5" y="1.5" width="37" height="37" rx="7" fill="none" stroke={C.teal} strokeWidth="1.4" />
+        <text x="20" y="26.5" textAnchor="middle" fontFamily="Georgia, serif" fontSize="17" fontWeight="600" fill={C.teal}>ME</text>
+      </svg>
+    );
+  }
   const r = size * 0.22;
   const cx = size / 2, cy = size / 2;
   return (
@@ -86,7 +95,7 @@ export default function Auth() {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 24 }}>
           <TriskopeLogo size={64} />
           <div style={{ fontSize: 26, fontWeight: 700, color: C.text, letterSpacing: "0.05em", marginTop: 12 }}>
-            triskope
+            {BRAND.wordmark}
           </div>
           <div style={{ fontSize: 12, color: C.textDim, letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 4 }}>
             see everything together
@@ -174,7 +183,7 @@ export default function Auth() {
         <div style={{
           marginTop: 20, fontSize: 11, color: C.textDim, textAlign: "center", lineHeight: 1.6,
         }}>
-          By continuing you agree to Triskope's terms and acknowledge our privacy policy.
+          By continuing you agree to {BRAND.name}'s terms and acknowledge our privacy policy.
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { supabase } from "./lib/supabase";
+import { BRAND } from "./brand";
 import Auth from "./Auth";
 import {
   Home, Users, FileText, Map, Brain, Settings, Wrench, Plus, ChevronRight, ChevronLeft,
@@ -77,9 +78,20 @@ function timeAgo(input) {
 }
 
 const TriskopeLogo = ({ size = 36, light = true }) => {
-  // `light=true` means logo sits on a DARK surface (sidebar / dark hero) so it
-  // uses the bright brand colors. light=false means it sits on a light surface
-  // (printable doc footers, etc.) and uses the deep brand colors.
+  // Brand-aware mark: Triskope = three overlapping circles; Market Edge =
+  // serif "ME" monogram tile. `light=true` means the mark sits on a DARK
+  // surface and uses bright colors; light=false for light surfaces.
+  if (BRAND.key === "marketedge") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 40 40">
+        <rect x="1.5" y="1.5" width="37" height="37" rx="7"
+          fill="none" stroke={light ? C.gold : C.teal} strokeWidth="1.6" />
+        <text x="20" y="26.5" textAnchor="middle"
+          fontFamily="Georgia, 'Times New Roman', serif" fontSize="17" fontWeight="600"
+          fill={light ? C.gold : C.teal} letterSpacing="0.5">ME</text>
+      </svg>
+    );
+  }
   const r = size * 0.22;
   const cx = size / 2, cy = size / 2;
   const t = light ? C.tealBright   : C.teal;
@@ -1582,6 +1594,7 @@ export default function App() {
 
   // Browser history sync: each view change becomes a history entry (#hash),
   // so Back/Forward move between screens instead of leaving the app.
+  useEffect(() => { document.title = BRAND.title; }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     // Never touch auth fragments (invite/recovery tokens, error codes) —
@@ -4860,7 +4873,7 @@ export default function App() {
           <div>
             <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 500, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Community Pages</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
-              Built and managed for you by The Market Edge team — every page captures leads tagged to its community.
+              Built and managed for you by the {BRAND.name} team — every page captures leads tagged to its community.
             </p>
           </div>
           {isPlatformAdmin && (
@@ -4873,11 +4886,11 @@ export default function App() {
           <Card style={{ textAlign: "center", padding: 44 }}>
             <h3 style={{ fontFamily: SERIF_FONT, fontSize: 24, fontWeight: 500, color: C.text, margin: "0 0 8px" }}>Your community strategy starts here</h3>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.7 }}>
-              As part of your plan, the Triskope team builds dedicated landing pages for the
+              As part of your plan, the {BRAND.name} team builds dedicated landing pages for the
               neighborhoods you farm — local-SEO pages that capture leads tagged to each
               community. Tell us which communities you want and we'll build them.
             </p>
-            <a href={`mailto:team@triskope.ai?subject=Community pages for ${org?.name || "my account"}`} style={{ ...btnPrimary(), display: "inline-flex", textDecoration: "none" }}>
+            <a href={`mailto:${BRAND.supportEmail}?subject=Community pages for ${org?.name || "my account"}`} style={{ ...btnPrimary(), display: "inline-flex", textDecoration: "none" }}>
               Request my community pages
             </a>
           </Card>
@@ -4903,9 +4916,9 @@ export default function App() {
             })}
             <Card style={{ display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "center", minHeight: 200 }}>
               <p style={{ fontSize: 13.5, color: C.textMuted, margin: "0 0 12px", lineHeight: 1.6 }}>
-                Want another neighborhood page? Content updates?<br />The Triskope team handles it.
+                Want another neighborhood page? Content updates?<br />The {BRAND.name} team handles it.
               </p>
-              <a href={`mailto:team@triskope.ai?subject=Community page request (${org?.name || ""})`} style={{ fontSize: 13, color: C.teal, fontWeight: 700, textDecoration: "none" }}>
+              <a href={`mailto:${BRAND.supportEmail}?subject=Community page request (${org?.name || ""})`} style={{ fontSize: 13, color: C.teal, fontWeight: 700, textDecoration: "none" }}>
                 Request changes →
               </a>
             </Card>
@@ -8067,7 +8080,7 @@ export default function App() {
         <Card style={{ marginBottom: 16 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: "0 0 4px" }}>Brand, SEO &amp; domain</h3>
           <p style={{ fontSize: 13, color: C.textMuted, margin: 0, lineHeight: 1.7 }}>
-            Your brand colors, search-engine settings, and domain are managed by Triskope
+            Your brand colors, search-engine settings, and domain are managed by {BRAND.name}
             so your site stays polished and ranks well. Want something changed? Reach out
             and we'll handle it.
           </p>
@@ -8212,7 +8225,7 @@ async function triskopeSubmit(e){
             </div>
           ))}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}`, fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
-            Want a full branded website instead of just a form? We can build you one with this capture already wired in — ask your Triskope contact.
+            Want a full branded website instead of just a form? We can build you one with this capture already wired in — ask your {BRAND.name} contact.
           </div>
         </Card>
       </div>
@@ -8533,11 +8546,11 @@ async function triskopeSubmit(e){
         <p style={{ fontSize: 14.5, color: C.text, fontWeight: 600, margin: "0 0 20px" }}>
           Included in the {FEATURE_PLANS[feature] || "Growth"} plan.
         </p>
-        <a href={`mailto:team@triskope.ai?subject=Upgrade my Triskope plan (${org?.name || ""})`} style={{ ...btnPrimary(), textDecoration: "none", display: "inline-flex" }}>
+        <a href={`mailto:${BRAND.supportEmail}?subject=Upgrade my ${BRAND.name} plan (${org?.name || ""})`} style={{ ...btnPrimary(), textDecoration: "none", display: "inline-flex" }}>
           Upgrade my plan
         </a>
         <p style={{ fontSize: 12.5, color: C.textDim, marginTop: 14 }}>
-          Or reply to your Triskope contact and we'll switch it on for you.
+          Or reply to your {BRAND.name} contact and we'll switch it on for you.
         </p>
       </Card>
     </div>
@@ -8553,8 +8566,8 @@ async function triskopeSubmit(e){
             <h2 style={{ fontFamily: SERIF_FONT, fontSize: 28, fontWeight: 500, color: C.text, margin: "0 0 10px" }}>Account paused</h2>
             <p style={{ fontSize: 14.5, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>
               This workspace is temporarily paused. Your leads and website content are
-              safe and nothing has been deleted. Please contact Triskope at
-              team@triskope.ai to restore access.
+              safe and nothing has been deleted. Please contact {BRAND.name} at
+              {BRAND.supportEmail} to restore access.
             </p>
           </Card>
         </div>
@@ -8769,7 +8782,7 @@ async function triskopeSubmit(e){
         <div style={{ width: "100%", maxWidth: 420, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
             <TriskopeLogo size={44} />
-            <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "16px 0 4px" }}>Welcome to Triskope</h1>
+            <h1 style={{ fontFamily: SERIF_FONT, fontSize: 26, fontWeight: 500, color: C.text, margin: "16px 0 4px" }}>Welcome to {BRAND.name}</h1>
             <p style={{ fontSize: 14, color: C.textMuted, textAlign: "center", margin: 0 }}>Set a password to finish setting up your account. You'll use it to sign in from now on.</p>
           </div>
           <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim, marginBottom: 6 }}>New password</label>
@@ -8868,7 +8881,7 @@ async function triskopeSubmit(e){
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <TriskopeLogo size={28} light />
-            <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 500, color: C.textInv, letterSpacing: "0.06em" }}>triskope</span>
+            <span style={{ fontFamily: SERIF_FONT, fontSize: 19, fontWeight: 500, color: C.textInv, letterSpacing: "0.06em" }}>{BRAND.wordmark}</span>
           </div>
           <button onClick={() => { setView("inbox"); setSidebarOpen(false); }} aria-label="Notifications" style={{
             marginLeft: "auto", position: "relative", background: "none", border: "none",
@@ -8907,8 +8920,8 @@ async function triskopeSubmit(e){
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 36 }}>
           <TriskopeLogo size={38} light />
           <div>
-            <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 500, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>triskope</div>
-            <div style={{ fontSize: 8, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>see everything together</div>
+            <div style={{ fontFamily: SERIF_FONT, fontSize: 22, fontWeight: 500, color: C.textInv, letterSpacing: "0.04em", lineHeight: 1 }}>{BRAND.wordmark}</div>
+            <div style={{ fontSize: 8, color: C.goldSoft, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>{BRAND.tagline}</div>
           </div>
         </div>
 
