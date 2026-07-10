@@ -410,6 +410,177 @@ const DEMO_STAGES = DEFAULT_STAGES.map((s, i) => ({
 }));
 // ---------- END DEMO SANDBOX ----------
 
+// ---------- ONBOARDING WIZARD ----------
+// Shown to a signed-in user with no workspace (fresh self-serve signup).
+// Collects workspace + agent profile + domain preference, then calls the
+// signup-org edge function. On success the app reloads into the new org,
+// which is billing_status='pending' → hard-gated on Plan & Billing.
+function OnboardingWizard({ email, displayName }) {
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [serviceArea, setServiceArea] = useState("");
+  const [phone, setPhone] = useState("");
+  const [bio, setBio] = useState("");
+  const [headshot, setHeadshot] = useState(null); // { preview, base64 }
+  const [domainMode, setDomainMode] = useState("subdomain");
+  const [domainValue, setDomainValue] = useState("");
+
+  const pickHeadshot = async (file) => {
+    if (!file) return;
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+      const max = 512;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      URL.revokeObjectURL(url);
+      setHeadshot({ preview: dataUrl, base64: dataUrl });
+    } catch {
+      setError("Couldn't read that image — try a JPG or PNG.");
+    }
+  };
+
+  const submit = async () => {
+    setBusy(true); setError("");
+    const { data, error: err } = await supabase.functions.invoke("signup-org", {
+      body: {
+        name: name.trim(),
+        service_area: serviceArea.trim(),
+        phone: phone.trim(),
+        bio: bio.trim(),
+        headshot_base64: headshot?.base64 || null,
+        domain: { mode: domainMode, value: domainMode === "subdomain" ? null : domainValue.trim() },
+      },
+    });
+    if (err || data?.error) {
+      let msg = data?.error || err?.message || "Couldn't create your workspace.";
+      if (err?.context?.json) { try { const j = await err.context.json(); if (j?.error) msg = j.error; } catch { /* ignore */ } }
+      setError(msg); setBusy(false);
+      return;
+    }
+    window.location.hash = "billing";
+    window.location.reload(); // membership effect picks up the new org
+  };
+
+  const input = {
+    width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`,
+    borderRadius: 10, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box",
+  };
+  const label = { fontSize: 12, fontWeight: 600, color: C.textMuted, letterSpacing: "0.04em", display: "block", marginBottom: 6 };
+  const primary = (disabled) => ({
+    padding: "12px 22px", borderRadius: 10, border: "none",
+    background: `linear-gradient(135deg, ${C.teal}, ${C.blue})`, color: "#0a0a14",
+    fontSize: 14, fontWeight: 700, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
+  });
+  const ghost = {
+    padding: "12px 18px", borderRadius: 10, border: `1px solid ${C.border}`,
+    background: "transparent", color: C.textMuted, fontSize: 14, cursor: "pointer",
+  };
+  const domainCard = (mode, title, sub) => (
+    <button type="button" onClick={() => setDomainMode(mode)} style={{
+      display: "block", width: "100%", textAlign: "left", padding: "14px 16px", marginBottom: 10,
+      borderRadius: 12, cursor: "pointer",
+      border: `1.5px solid ${domainMode === mode ? C.teal : C.border}`,
+      background: domainMode === mode ? C.teal + "10" : "transparent", color: C.text,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
+      <div style={{ fontSize: 12.5, color: C.textMuted, marginTop: 3 }}>{sub}</div>
+    </button>
+  );
+
+  const steps = ["Your workspace", "Your profile", "Your web address"];
+  const canNext = step === 0 ? name.trim().length >= 2 : step === 2 ? (domainMode === "subdomain" || domainValue.trim().length > 3) : true;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "-apple-system, system-ui, sans-serif" }}>
+      <div style={{ width: "100%", maxWidth: 520, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, padding: "32px 30px" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 22 }}>
+          {steps.map((s, i) => (
+            <div key={s} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= step ? C.teal : C.border }} />
+          ))}
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{steps[step]}</h1>
+        <p style={{ fontSize: 13.5, color: C.textMuted, margin: "0 0 22px" }}>
+          {step === 0 && `Welcome${displayName ? `, ${displayName}` : ""} — let's set up your workspace. Takes about a minute.`}
+          {step === 1 && "This powers your agent website — you can change all of it later."}
+          {step === 2 && "Where should your site live? You can upgrade this anytime."}
+        </p>
+
+        {step === 0 && (<>
+          <div style={{ marginBottom: 16 }}>
+            <span style={label}>Brokerage / team name *</span>
+            <input style={input} value={name} onChange={e => setName(e.target.value)} placeholder="Coastal Realty Group" />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <span style={label}>Service area</span>
+            <input style={input} value={serviceArea} onChange={e => setServiceArea(e.target.value)} placeholder="Myrtle Beach & the Grand Strand" />
+          </div>
+          <div>
+            <span style={label}>Phone</span>
+            <input style={input} value={phone} onChange={e => setPhone(e.target.value)} placeholder="(843) 555-0100" />
+          </div>
+        </>)}
+
+        {step === 1 && (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
+            <div style={{
+              width: 76, height: 76, borderRadius: "50%", overflow: "hidden", flexShrink: 0,
+              border: `2px solid ${C.border}`, background: C.bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {headshot
+                ? <img src={headshot.preview} alt="Headshot" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <span style={{ fontSize: 26, color: C.textDim }}>{(displayName || email || "?").slice(0, 1).toUpperCase()}</span>}
+            </div>
+            <label style={{ ...ghost, display: "inline-block" }}>
+              {headshot ? "Change headshot" : "Upload headshot"}
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => pickHeadshot(e.target.files?.[0])} />
+            </label>
+          </div>
+          <div>
+            <span style={label}>Short bio</span>
+            <textarea style={{ ...input, minHeight: 110, resize: "vertical" }} value={bio} onChange={e => setBio(e.target.value)}
+              placeholder="15 years helping families find their place on the Grand Strand…" />
+          </div>
+        </>)}
+
+        {step === 2 && (<>
+          {domainCard("subdomain", "Start on a Triskope address", "yourname.triskope.ai — live immediately, upgrade to a custom domain later")}
+          {domainCard("own", "I already own a domain", "We'll connect it for you after signup")}
+          {domainCard("request", "I need a new domain", "Tell us what you'd like — we'll register and connect it")}
+          {domainMode !== "subdomain" && (
+            <input style={{ ...input, marginTop: 4 }} value={domainValue} onChange={e => setDomainValue(e.target.value)}
+              placeholder={domainMode === "own" ? "yourdomain.com" : "the domain you'd like, e.g. myrtlebeachhomes.com"} />
+          )}
+        </>)}
+
+        {error && (
+          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444", fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 26 }}>
+          {step > 0 ? <button type="button" style={ghost} onClick={() => setStep(step - 1)}>Back</button> : <span />}
+          {step < 2
+            ? <button type="button" style={primary(!canNext)} disabled={!canNext} onClick={() => canNext && setStep(step + 1)}>Continue</button>
+            : <button type="button" style={primary(busy || !canNext)} disabled={busy || !canNext} onClick={submit}>
+                {busy ? "Creating your workspace…" : "Create workspace →"}
+              </button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+// ---------- END ONBOARDING WIZARD ----------
+
 // Public subscriber-site renderer (triskope-sites on Vercel). Preview iframes
 // point here with ?slug= until per-org DNS (slug.triskope.ai) is wired.
 const SITES_BASE = import.meta.env.VITE_SITES_BASE || "https://triskope-sites.vercel.app";
@@ -1740,6 +1911,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Triskope staff flag (platform_admins table, RLS lets users read own row).
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false); // signed in, zero workspaces → wizard
   // Site Admin selection lives at App level: toasts remount the view and
   // would otherwise dump the admin back to the subscriber list mid-work.
   const [siteAdminSelId, setSiteAdminSelId] = useState(null);
@@ -1933,7 +2105,8 @@ export default function App() {
       // clobber our role in roleByOrg (e.g. an agent row hiding owner nav).
       const { data: mems } = await supabase.from("org_members")
         .select("org_id, role").eq("user_id", session.user.id);
-      if (!mems || mems.length === 0) return;
+      if (!mems || mems.length === 0) { setNeedsOnboarding(true); return; }
+      setNeedsOnboarding(false);
       // Platform admin detection (self-row read; empty for everyone else)
       supabase.from("platform_admins").select("user_id").maybeSingle()
         .then(({ data }) => setIsPlatformAdmin(!!data));
@@ -5727,6 +5900,7 @@ export default function App() {
   const PlansView = () => {
     const [busy, setBusy] = useState(null); // plan key being processed
     const isOwner = org?.role === "owner";
+    const pendingActivation = !DEMO_MODE && org?.billing_status === "pending";
     const TIERS = [
       { key: "starter", name: "Essential", price: 349, blurb: "The essentials to run your pipeline.",
         features: ["Managed agent website + lead capture", "Full CRM: leads, pipeline, tasks", "Email nurture sequences", "Home valuation funnel", "IDX search + registration gate"] },
@@ -5770,7 +5944,9 @@ export default function App() {
           <div>
             <h1 style={{ fontFamily: SERIF_FONT, fontSize: isMobile ? 28 : 36, fontWeight: 600, color: C.text, margin: 0, letterSpacing: "0.01em", lineHeight: 1.1 }}>Plan &amp; Billing</h1>
             <p style={{ fontSize: 14, color: C.textMuted, margin: "4px 0 0" }}>
-              {org?.name} is on the <strong style={{ color: C.text }}>{PLAN_LABELS[org?.plan] || PLAN_LABELS.starter}</strong> plan.
+              {pendingActivation
+                ? <>Welcome to {BRAND.name}! Choose a plan to activate <strong style={{ color: C.text }}>{org?.name}</strong> — your workspace unlocks the moment checkout completes.</>
+                : <>{org?.name} is on the <strong style={{ color: C.text }}>{PLAN_LABELS[org?.plan] || PLAN_LABELS.starter}</strong> plan.</>}
             </p>
           </div>
           {isOwner && org?.stripe_customer_id && (
@@ -5795,7 +5971,7 @@ export default function App() {
 
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16 }}>
           {TIERS.map(t => {
-            const current = (org?.plan || "starter") === t.key;
+            const current = !pendingActivation && (org?.plan || "starter") === t.key;
             return (
               <Card key={t.key} style={{ borderColor: current ? C.teal : t.key === "pro" ? C.gold : C.border, borderWidth: current || t.key === "pro" ? 2 : 1, position: "relative", display: "flex", flexDirection: "column" }}>
                 {t.key === "pro" && !current && <Badge color={C.gold}>Most Popular</Badge>}
@@ -8905,6 +9081,11 @@ async function triskopeSubmit(e){
         </div>
       );
     }
+    // HARD GATE: a fresh self-serve workspace (billing_status='pending') can
+    // only see Plan & Billing until Stripe checkout completes and the webhook
+    // flips it to 'active'. Never triggers for existing orgs (active/past_due/
+    // suspended have their own enforcement).
+    if (!DEMO_MODE && org?.billing_status === "pending") return <PlansView />;
     switch (view) {
       case "inbox": return <InboxView />;
       case "leads": return <LeadsView />;
@@ -9148,6 +9329,7 @@ async function triskopeSubmit(e){
   if (needsPassword) return <SetPasswordScreen onDone={() => { setNeedsPassword(false); window.location.hash = ""; window.history.replaceState(null, "", window.location.pathname); }} />;
   if (!session && linkExpired) return <ExpiredLinkScreen onBack={() => { setLinkExpired(false); window.history.replaceState(null, "", window.location.pathname); }} />;
   if (!session && !DEMO_MODE) return <Auth onTourDemo={() => { try { sessionStorage.setItem("tme_demo", "1"); } catch { /* ignore */ } window.location.hash = "dashboard"; window.location.reload(); }} />;
+  if (session && needsOnboarding) return <OnboardingWizard email={session.user?.email} displayName={session.user?.user_metadata?.display_name} />;
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, system-ui, sans-serif", paddingTop: DEMO_MODE ? 40 : 0 }}>
