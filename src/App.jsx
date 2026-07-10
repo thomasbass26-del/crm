@@ -270,6 +270,146 @@ const DEFAULT_STAGES = [
   { id: "lost",       label: "Lost",       color: "#55557a" }, // dropped out — dim
 ];
 
+// ---------- DEMO SANDBOX ----------
+// Client-side tour mode: renders the real app with fixture data, no account,
+// no Supabase writes. Enter via #demo or ?demo; persists for the tab session.
+const DEMO_MODE = (() => {
+  try {
+    const h = window.location.hash.replace(/^#/, "");
+    const q = new URLSearchParams(window.location.search);
+    if (h === "demo" || q.has("demo")) {
+      sessionStorage.setItem("tme_demo", "1");
+      if (h === "demo") window.history.replaceState(null, "", window.location.pathname + "#dashboard");
+    }
+    return sessionStorage.getItem("tme_demo") === "1";
+  } catch { return false; }
+})();
+const exitDemo = () => {
+  try { sessionStorage.removeItem("tme_demo"); } catch { /* ignore */ }
+  window.location.href = window.location.pathname; // back to sign-in / sign-up
+};
+
+const DEMO_ORG = {
+  id: "demo-org", name: "Coastal Realty Group", slug: "demo", role: "owner",
+  plan: "pro", billing_status: "active", features: {}, site_config: {},
+  custom_domain: null, stripe_customer_id: null,
+};
+
+const DEMO_MEMBERS = [
+  { user_id: "demo-u1", display_name: "Sarah Mitchell", email: "sarah@coastalrealtygroup.com", role: "owner" },
+  { user_id: "demo-u2", display_name: "Marcus Reid", email: "marcus@coastalrealtygroup.com", role: "team_lead" },
+  { user_id: "demo-u3", display_name: "Jenna Alvarez", email: "jenna@coastalrealtygroup.com", role: "agent" },
+];
+
+const demoDaysAgo = (d) => new Date(Date.now() - d * 86400000).toISOString();
+const demoLead = (i, name, stage, score, source, extra = {}) => {
+  const tier = score == null ? "new" : score >= 70 ? "hot" : score >= 40 ? "nurture" : "cold";
+  const days = extra.days ?? (i + 1);
+  return {
+    id: `demo-lead-${i}`,
+    name,
+    email: `${name.toLowerCase().replace(/[^a-z]/g, ".")}@example.com`,
+    phone: `(843) 555-01${String(i).padStart(2, "0")}`,
+    source, status: tier, stage, score,
+    area: extra.area ?? null, budget: extra.budget ?? null, interest: extra.interest ?? null,
+    aiNotes: extra.aiNotes ?? null,
+    aiRationale: extra.aiRationale ?? [],
+    aiNextAction: extra.aiNextAction ?? null,
+    aiTier: score == null ? null : tier,
+    consentEmail: true, consentSms: i % 3 !== 0,
+    addedDays: days, createdAt: demoDaysAgo(days),
+    lastContact: extra.lastContact ?? "—",
+    agent: null, assignedAgent: extra.assignedAgent ?? null, tags: [],
+    segment: extra.segment ?? null,
+    activity: extra.activity ?? [
+      { type: "system", text: "Lead form submitted", icon: "Activity", time: `${days}d ago` },
+    ],
+  };
+};
+
+const DEMO_LEADS = [
+  demoLead(1, "Rachel Donovan", "warm", 84, "Home Value Funnel", {
+    area: "North Myrtle Beach", budget: "$550k–$650k", interest: "Selling + buying larger",
+    aiRationale: ["Requested a home valuation on a $580k property", "Opened all 4 nurture emails within an hour", "Asked about oceanfront inventory in reply"],
+    aiNextAction: "Call within the hour — reference her Cherry Grove valuation and ask about her timeline.",
+    aiNotes: "High intent seller-buyer combo. Valuation request + fast email engagement.",
+    assignedAgent: "demo-u2", lastContact: "2h ago", days: 3,
+    activity: [
+      { type: "email", text: "Replied asking about oceanfront listings", icon: "Mail", time: "2h ago" },
+      { type: "system", text: "Scored 84 (hot). Valuation request + high engagement.", icon: "Activity", time: "1d ago" },
+      { type: "system", text: "Home value report requested — 4207 Ocean Blvd", icon: "Activity", time: "3d ago" },
+    ],
+  }),
+  demoLead(2, "Tom & Priya Keller", "warm", 78, "IDX Registration", {
+    area: "Carolina Forest", budget: "$400k–$475k", interest: "Relocating from Ohio",
+    aiRationale: ["Saved 6 listings in Carolina Forest this week", "Registered to view full listing details", "Searching school-district filtered results"],
+    aiNextAction: "Send a curated list of 4-bed homes near Ocean Bay schools.",
+    assignedAgent: "demo-u3", lastContact: "1d ago", days: 6,
+    activity: [
+      { type: "system", text: "Saved 3 more listings in Carolina Forest", icon: "Activity", time: "1d ago" },
+      { type: "system", text: "Registered via IDX gate on the Waterway Palms listing", icon: "Activity", time: "6d ago" },
+    ],
+  }),
+  demoLead(3, "Devon Marsh", "nurturing", 61, "Community Page — Market Common", {
+    area: "Market Common", interest: "First-time buyer",
+    aiRationale: ["Downloaded the Market Common buyer guide", "Opens emails but hasn't replied"],
+    aiNextAction: "Enroll in first-time-buyer drip; check in Friday.",
+    assignedAgent: "demo-u3", lastContact: "4d ago", days: 12,
+  }),
+  demoLead(4, "Linda Okafor", "nurturing", 55, "Home Value Funnel", {
+    area: "Surfside Beach", interest: "Downsizing",
+    aiNextAction: "Share the Surfside condo market report.", days: 9,
+  }),
+  demoLead(5, "Chris Battaglia", "nurturing", 47, "Zillow Import", { area: "Conway", days: 15 }),
+  demoLead(6, "Maya Lindqvist", "nurturing", 44, "Open House Sign-in", { area: "Litchfield", days: 18, assignedAgent: "demo-u2" }),
+  demoLead(7, "Hannah Cho", "scored", 72, "IDX Registration", {
+    area: "Grande Dunes", budget: "$700k+", interest: "Golf community",
+    aiRationale: ["Viewed 11 Grande Dunes listings in two sessions", "Price band consistently $700k+"],
+    aiNextAction: "Offer a private tour of the two newest Grande Dunes listings.",
+    days: 2,
+  }),
+  demoLead(8, "Robert Ellison", "scored", 38, "Facebook Ad", { area: "Socastee", days: 4 }),
+  demoLead(9, "Alicia Fontaine", "captured", null, "Home Value Funnel", { days: 0, activity: [{ type: "system", text: "Home value report requested", icon: "Activity", time: "3h ago" }] }),
+  demoLead(10, "Greg Tanaka", "captured", null, "IDX Registration", { days: 0 }),
+  demoLead(11, "Whitney Boyd", "captured", null, "Community Page — Pawleys Island", { days: 1 }),
+  demoLead(12, "Sam & Erica Whitfield", "captured", null, "Referral", { days: 1 }),
+  demoLead(13, "Nina Petrov", "captured", null, "Open House Sign-in", { days: 2 }),
+  demoLead(14, "Jordan Ash", "delivered", 88, "Home Value Funnel", {
+    area: "Cherry Grove", lastContact: "Under contract", days: 30, assignedAgent: "demo-u2",
+    activity: [{ type: "system", text: "Delivered to agent — went under contract", icon: "Activity", time: "1w ago" }],
+  }),
+  demoLead(15, "Beth Calloway", "delivered", 81, "IDX Registration", { days: 34, assignedAgent: "demo-u3", lastContact: "Closed 6/12" }),
+  demoLead(16, "Victor Nunes", "delivered", 76, "Referral", { days: 41, assignedAgent: "demo-u2", lastContact: "Closed 5/28" }),
+  demoLead(17, "Paul Gerrity", "lost", 22, "Facebook Ad", { days: 45, lastContact: "Unresponsive" }),
+  demoLead(18, "Dana Mercer", "lost", 31, "Zillow Import", { days: 52, lastContact: "Went with another agent" }),
+];
+
+const DEMO_TASKS = {
+  "demo-lead-1": [
+    { id: "demo-task-1", text: "Call Rachel re: Cherry Grove valuation", due: new Date().toISOString().slice(0, 10), done: false },
+    { id: "demo-task-2", text: "Pull oceanfront comps for her reply", due: new Date(Date.now() + 86400000).toISOString().slice(0, 10), done: false },
+  ],
+  "demo-lead-2": [
+    { id: "demo-task-3", text: "Send Ocean Bay school-district listing set", due: new Date().toISOString().slice(0, 10), done: false },
+  ],
+  "demo-lead-7": [
+    { id: "demo-task-4", text: "Schedule Grande Dunes private tour", due: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), done: false },
+  ],
+  "_none": [
+    { id: "demo-task-5", text: "Review this week's hot-lead handoffs", due: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), done: true },
+  ],
+};
+// Demo stages: DEFAULT_STAGES enriched with the DB row fields the Manage
+// Stages panel expects (position ordering, system-stage protection, flags).
+const DEMO_STAGES = DEFAULT_STAGES.map((s, i) => ({
+  ...s, position: i + 1, hidden: false,
+  system: ["captured", "warm", "delivered"].includes(s.id),
+  is_entry: s.id === "captured",
+  is_terminal: s.id === "delivered",
+  pauses_nurture: s.id === "delivered",
+}));
+// ---------- END DEMO SANDBOX ----------
+
 // Public subscriber-site renderer (triskope-sites on Vercel). Preview iframes
 // point here with ?slug= until per-org DNS (slug.triskope.ai) is wired.
 const SITES_BASE = import.meta.env.VITE_SITES_BASE || "https://triskope-sites.vercel.app";
@@ -1783,6 +1923,7 @@ export default function App() {
 
   // Fetch leads from Supabase whenever the session changes
   useEffect(() => {
+    if (DEMO_MODE) { setOrgs([DEMO_ORG]); setOrg(DEMO_ORG); return; }
     if (!session) { setLeads([]); return; }
     let cancelled = false;
     // Resolve the signed-in user's organization (id, name, slug) for the Connect-site screen
@@ -1819,6 +1960,7 @@ export default function App() {
   // mirroring the leads effect. Re-runs on workspace switch.
   useEffect(() => {
     if (!org?.id) { setLeadTasks({}); setIdxListings([]); return; }
+    if (DEMO_MODE) { setLeadTasks(DEMO_TASKS); setIdxListings([]); return; }
     let cancelled = false;
     loadTasks(org.id);
     // Load real IDX listings (if any feed has synced)
@@ -1852,6 +1994,7 @@ export default function App() {
   // so switching workspaces shows only that org's leads — not a merged set.
   useEffect(() => {
     if (!org?.id) { setLeads([]); return; }
+    if (DEMO_MODE) { setLeads(DEMO_LEADS); setLeadsLoading(false); return; }
     let cancelled = false;
     setLeadsLoading(true);
     supabase
@@ -1918,6 +2061,7 @@ export default function App() {
   // If the org has no rows yet, we keep the DEFAULT_STAGES fallback (never blank).
   const loadStages = async (orgId) => {
     if (!orgId) return;
+    if (DEMO_MODE) { setStagesAll(DEMO_STAGES); return; } // seeded once by the org effect; demo edits stay local
     const { data, error } = await supabase
       .from("pipeline_stages")
       .select("id, label, color, position, hidden, system, is_entry, is_terminal, pauses_nurture")
@@ -1936,6 +2080,7 @@ export default function App() {
   // Load the active org's members (for the lead-assignment picker).
   useEffect(() => {
     if (!org?.id) { setOrgMembers([]); return; }
+    if (DEMO_MODE) { setOrgMembers(DEMO_MEMBERS); return; }
     let cancelled = false;
     (async () => {
       const { data } = await supabase.functions.invoke("team-members", { body: { org_id: org.id } });
@@ -1948,6 +2093,7 @@ export default function App() {
   const assignLead = async (leadId, userId) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assignedAgent: userId } : l));
     setSelectedLead(prev => (prev && prev.id === leadId) ? { ...prev, assignedAgent: userId } : prev);
+    if (DEMO_MODE) return; // demo: local only
     const { error } = await supabase.from("leads").update({ assigned_agent: userId }).eq("id", leadId);
     if (error) setToast({ message: "Couldn't assign: " + error.message, kind: "error" });
   };
@@ -1956,6 +2102,7 @@ export default function App() {
   // org and arms the confirm; step 2 distributes them evenly across all members.
   const prepDistribute = async () => {
     if (!org?.id) return;
+    if (DEMO_MODE) { setToast({ message: "Round-robin distribution is live in the full product — this tour uses sample data.", kind: "info" }); return; }
     const { count, error } = await supabase.from("leads")
       .select("id", { count: "exact", head: true })
       .eq("org_id", org.id).is("assigned_agent", null);
@@ -2009,6 +2156,11 @@ export default function App() {
   // (it's the lead-capture target where new + existing leads land).
   const toggleStageHidden = async (stage) => {
     if (!org?.id || stage.id === "captured") return;
+    if (DEMO_MODE) {
+      setStagesAll(prev => prev.map(s => s.id === stage.id ? { ...s, hidden: !stage.hidden } : s));
+      setToast({ message: `${stage.label} ${stage.hidden ? "shown" : "hidden"} (demo)`, kind: "success" });
+      return;
+    }
     setStageBusy(stage.id);
     const { error } = await supabase
       .from("pipeline_stages")
@@ -2024,6 +2176,7 @@ export default function App() {
   // Owner-only: change a stage's display color (persist on blur).
   const updateStageColor = async (stage, color) => {
     if (!org?.id || !color || color === stage.color) return;
+    if (DEMO_MODE) { setStagesAll(prev => prev.map(s => s.id === stage.id ? { ...s, color } : s)); return; }
     const { error } = await supabase
       .from("pipeline_stages").update({ color })
       .eq("org_id", org.id).eq("id", stage.id);
@@ -2038,6 +2191,13 @@ export default function App() {
     const idx = ordered.findIndex(s => s.id === stage.id);
     const swapWith = ordered[idx + dir];
     if (!swapWith) return;
+    if (DEMO_MODE) {
+      setStagesAll(prev => prev.map(s =>
+        s.id === stage.id ? { ...s, position: swapWith.position }
+        : s.id === swapWith.id ? { ...s, position: stage.position }
+        : s));
+      return;
+    }
     setStageBusy(stage.id);
     const [{ error: e1 }, { error: e2 }] = await Promise.all([
       supabase.from("pipeline_stages").update({ position: swapWith.position }).eq("org_id", org.id).eq("id", stage.id),
@@ -2055,6 +2215,12 @@ export default function App() {
     const base = (label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24)) || "stage";
     const id = `${base}_${Math.random().toString(36).slice(2, 7)}`;
     const maxPos = stagesAll.reduce((m, s) => Math.max(m, s.position), 0);
+    if (DEMO_MODE) {
+      setStagesAll(prev => [...prev, { id, label, color: newStageColor || "#818cf8", position: maxPos + 1, hidden: false, system: false }]);
+      setNewStageLabel(""); setNewStageColor("#818cf8");
+      setToast({ message: `Added "${label}" (demo)`, kind: "success" });
+      return;
+    }
     setStageBusy("__new__");
     const { error } = await supabase.from("pipeline_stages").insert({
       org_id: org.id, id, label, color: newStageColor || "#818cf8",
@@ -2072,6 +2238,14 @@ export default function App() {
   // on-delete-restrict is the hard backstop at the DB).
   const deleteStage = async (stage) => {
     if (!org?.id || stage.system) return;
+    if (DEMO_MODE) {
+      const inUse = leads.filter(l => l.stage === stage.id).length;
+      setConfirmDeleteId(null);
+      if (inUse) { setToast({ message: `Move the ${inUse} lead${inUse === 1 ? "" : "s"} out of "${stage.label}" first`, kind: "error" }); return; }
+      setStagesAll(prev => prev.filter(s => s.id !== stage.id));
+      setToast({ message: `Deleted "${stage.label}" (demo)`, kind: "success" });
+      return;
+    }
     setStageBusy(stage.id);
     const { count, error: cErr } = await supabase
       .from("leads").select("id", { count: "exact", head: true })
@@ -2094,6 +2268,11 @@ export default function App() {
     const next = (label || "").trim();
     setEditingStageId(null);
     if (!org?.id || !next || next === stage.label) return;
+    if (DEMO_MODE) {
+      setStagesAll(prev => prev.map(s => s.id === stage.id ? { ...s, label: next } : s));
+      setToast({ message: `Renamed to "${next}" (demo)`, kind: "success" });
+      return;
+    }
     const { error } = await supabase
       .from("pipeline_stages").update({ label: next })
       .eq("org_id", org.id).eq("id", stage.id);
@@ -2105,6 +2284,7 @@ export default function App() {
   // Fetch messages for the currently selected lead
   useEffect(() => {
     if (!selectedLead?.id) { setMessages([]); return; }
+    if (DEMO_MODE) { setMessages([]); setMessagesLoading(false); return; }
     let cancelled = false;
     setMessagesLoading(true);
     supabase
@@ -2179,6 +2359,13 @@ export default function App() {
         clearInterval(phaseTimer.current);
         // Real Claude call. Build real context for the insight type.
         (async () => {
+          if (DEMO_MODE) {
+            setAiOut("This is the demo — in the full product, this panel generates live AI analysis from your actual pipeline: lead scoring rationale, market commentary, and drafted follow-ups tuned to your workspace. Create an account to see it run on real data.");
+            setAiBusy(false);
+            setAiStreamed("");
+            setAiStreaming(true);
+            return;
+          }
           const realCtx = buildInsightContext(aiType, aiCtx);
           const { data, error } = await supabase.functions.invoke("ai-insights", {
             body: { type: aiType, context: realCtx },
@@ -2280,9 +2467,11 @@ export default function App() {
     setAssistantMessages(prev => [...prev, userMsg, assistantMsg]);
     setAssistantDraft("");
 
-    const { data, error } = await supabase.functions.invoke("ai-assistant", {
-      body: { mode: "chat", prompt, lead_id: selectedLead?.id || null },
-    });
+    const { data, error } = DEMO_MODE
+      ? { data: { text: "I'm running in tour mode on sample data, so live AI answers are switched off. In the full product I score every lead, explain why, and draft the next follow-up — create an account and connect your pipeline to try it for real." }, error: null }
+      : await supabase.functions.invoke("ai-assistant", {
+          body: { mode: "chat", prompt, lead_id: selectedLead?.id || null },
+        });
     const replyText = (error || data?.error)
       ? `Sorry — I couldn't get a response. ${data?.error || error.message || ""}`
       : (data?.text || "No response.");
@@ -2351,6 +2540,7 @@ export default function App() {
     const lead = leads.find(l => l.id === leadId);
     const stage = STAGES.find(s => s.id === stageId);
     if (lead && stage) setToast({ message: `${lead.name.split(" ")[0]} moved to ${stage.label}`, kind: "success" });
+    if (DEMO_MODE) return; // demo: local only
     // Persist to Supabase
     supabase.from("leads").update({ stage: stageId }).eq("id", leadId).then(({ error }) => {
       if (error) setToast({ message: "Couldn't save stage: " + error.message, kind: "error" });
@@ -2360,6 +2550,7 @@ export default function App() {
   const [nurtureByLead, setNurtureByLead] = useState({}); // leadId -> enrollment row
 
   const loadNurture = async (leadId) => {
+    if (DEMO_MODE) { setNurtureByLead(prev => ({ ...prev, [leadId]: prev[leadId] ?? null })); return; }
     const { data } = await supabase.from("nurture_enrollments")
       .select("id, sequence_id, next_step, status, last_sent_at, enrolled_at")
       .eq("lead_id", leadId).maybeSingle();
@@ -2367,6 +2558,11 @@ export default function App() {
   };
 
   const enrollNurture = async (leadId) => {
+    if (DEMO_MODE) {
+      setNurtureByLead(prev => ({ ...prev, [leadId]: { id: `demo-enr-${leadId}`, sequence_id: "demo-seq", next_step: 1, status: "active", last_sent_at: null, enrolled_at: new Date().toISOString() } }));
+      setToast({ message: "Enrolled in nurture sequence (demo)", kind: "success" });
+      return;
+    }
     // Use the global Starter Nurture sequence.
     const { data: seq } = await supabase.from("nurture_sequences")
       .select("id").eq("name", "Starter Nurture").is("org_id", null).maybeSingle();
@@ -2400,6 +2596,11 @@ export default function App() {
   };
 
   const stopNurture = async (enrollmentId, leadId) => {
+    if (DEMO_MODE) {
+      setNurtureByLead(prev => ({ ...prev, [leadId]: prev[leadId] ? { ...prev[leadId], status: "stopped" } : null }));
+      setToast({ message: "Nurture stopped (demo)", kind: "success" });
+      return;
+    }
     await supabase.from("nurture_enrollments").update({ status: "stopped" }).eq("id", enrollmentId);
     setToast({ message: "Nurture stopped", kind: "success" });
     loadNurture(leadId);
@@ -2409,6 +2610,7 @@ export default function App() {
     const next = segId || null;
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, segment: next } : l));
     if (selectedLead?.id === leadId) setSelectedLead(prev => prev ? { ...prev, segment: next } : prev);
+    if (DEMO_MODE) return; // demo: local only
     supabase.from("leads").update({ segment: next }).eq("id", leadId).then(({ error }) => {
       if (error) setToast({ message: "Couldn't save segment: " + error.message, kind: "error" });
     });
@@ -2424,6 +2626,7 @@ export default function App() {
 
   const loadTasks = async (orgId) => {
     if (!orgId) { setLeadTasks({}); return; }
+    if (DEMO_MODE) return; // demo tasks are seeded once by the org effect
     const { data } = await supabase
       .from("tasks")
       .select("id, lead_id, title, due_at, completed_at")
@@ -2446,6 +2649,13 @@ export default function App() {
   const addTask = async (leadId, text, due) => {
     if (!text.trim()) return;
     if (!org?.id) { setToast({ message: "No workspace found.", kind: "error" }); return; }
+    if (DEMO_MODE) {
+      const shaped = { id: `demo-task-${Date.now()}`, text: text.trim(), due: due || "no due date", done: false };
+      setLeadTasks(prev => ({ ...prev, [leadId]: [shaped, ...(prev[leadId] || [])] }));
+      setTaskDraft(""); setTaskDueDraft("");
+      setToast({ message: "Follow-up scheduled (demo)", kind: "success" });
+      return;
+    }
     const { data, error } = await supabase.from("tasks").insert({
       org_id: org.id,
       lead_id: leadId === "_none" ? null : leadId,
@@ -2467,6 +2677,7 @@ export default function App() {
       ...prev,
       [leadId]: (prev[leadId] || []).map(t => t.id === taskId ? { ...t, done: nowDone } : t),
     }));
+    if (DEMO_MODE) return; // demo: local only
     const { error } = await supabase.from("tasks")
       .update({ completed_at: nowDone ? new Date().toISOString() : null })
       .eq("id", taskId);
@@ -2484,6 +2695,7 @@ export default function App() {
       ...prev,
       [leadId]: (prev[leadId] || []).filter(t => t.id !== taskId),
     }));
+    if (DEMO_MODE) return; // demo: local only
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
     if (error) { setToast({ message: "Couldn't delete task", kind: "error" }); loadTasks(org?.id); }
   };
@@ -2491,6 +2703,7 @@ export default function App() {
   // ----- Messaging -----
   const sendMessage = async (leadId, body, channel, subject) => {
     if (!body.trim()) return;
+    if (DEMO_MODE) { setToast({ message: "Messages aren't sent from the demo — sample contacts only.", kind: "info" }); return; }
     const lead = leads.find(l => l.id === leadId);
     const orgId = org?.id;
 
@@ -5524,6 +5737,7 @@ export default function App() {
     ];
 
     const checkout = async (planKey) => {
+      if (DEMO_MODE) { exitDemo(); return; } // tour CTA: go create a real account
       setBusy(planKey);
       const { data, error } = await supabase.functions.invoke("stripe-checkout", { body: { org_id: org.id, plan: planKey } });
       setBusy(null);
@@ -5537,6 +5751,7 @@ export default function App() {
     };
 
     const openPortal = async () => {
+      if (DEMO_MODE) { exitDemo(); return; }
       setBusy("portal");
       const { data, error } = await supabase.functions.invoke("stripe-portal", { body: { org_id: org.id } });
       setBusy(null);
@@ -8932,10 +9147,27 @@ async function triskopeSubmit(e){
   }
   if (needsPassword) return <SetPasswordScreen onDone={() => { setNeedsPassword(false); window.location.hash = ""; window.history.replaceState(null, "", window.location.pathname); }} />;
   if (!session && linkExpired) return <ExpiredLinkScreen onBack={() => { setLinkExpired(false); window.history.replaceState(null, "", window.location.pathname); }} />;
-  if (!session) return <Auth />;
+  if (!session && !DEMO_MODE) return <Auth onTourDemo={() => { try { sessionStorage.setItem("tme_demo", "1"); } catch { /* ignore */ } window.location.hash = "dashboard"; window.location.reload(); }} />;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, system-ui, sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, system-ui, sans-serif", paddingTop: DEMO_MODE ? 40 : 0 }}>
+      {DEMO_MODE && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, zIndex: 4000, height: 40,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "0 16px",
+          background: "#12122b", borderBottom: "1px solid rgba(194,167,110,0.45)",
+        }}>
+          <span style={{ fontSize: 13, color: "#e2e8f0" }}>
+            You're touring <strong>The Market Edge</strong> with sample data — changes aren't saved.
+          </span>
+          <button onClick={exitDemo} style={{
+            padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+            background: "#c2a76e", color: "#1a1a2e", fontSize: 12.5, fontWeight: 700,
+          }}>
+            Create your account
+          </button>
+        </div>
+      )}
       <style>{`
         @keyframes tk-toast { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
         @keyframes tk-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }

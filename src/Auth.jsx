@@ -42,7 +42,7 @@ const inputStyle = {
   transition: "border-color 0.15s ease",
 };
 
-export default function Auth() {
+export default function Auth({ onTourDemo } = {}) {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -183,6 +183,16 @@ export default function Auth() {
           </button>
           <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </form>
+
+        {typeof onTourDemo === "function" && (
+          <button type="button" onClick={onTourDemo} style={{
+            width: "100%", marginTop: 12, padding: "11px 16px", borderRadius: 10, cursor: "pointer",
+            background: "transparent", border: `1px solid ${C.teal}50`, color: C.teal,
+            fontSize: 13.5, fontWeight: 600, minHeight: 44,
+          }}>
+            New here? Tour the platform with sample data →
+          </button>
+        )}
 
         <div style={{
           marginTop: 20, fontSize: 11, color: C.textDim, textAlign: "center", lineHeight: 1.6,
